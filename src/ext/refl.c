@@ -3,11 +3,11 @@
  *
  * See /ext/lib/refl.md for an overview of the type reflection functionality.
  */
- #include "./ext/lib/refl.h"
+ #include "refl.h"
 
- #include "common.h"
- #include "geom.h"
- #include "gool.h"
+ #include "../common.h"
+ #include "../geom.h"
+ #include "../gool.h"
 
 int CountPlusOne(void *data, refl_field *field) {
   int count;
@@ -849,10 +849,10 @@ refl_type gool_anim_type = {
   .name = "gool_anim",
   .flags = REFL_FLAGS_STATIC,
   .fields = {
-    REFL_FIELD(gool_anim,uint8_t,type),
-    REFL_FIELD(gool_anim,uint8_t,unused),
-    REFL_FIELD(gool_anim,uint8_t,length),
-    REFL_FIELD(gool_anim,uint8_t,unused_2),
+    REFL_FIELD(gool_anim,uint8_t,header.type),
+    REFL_FIELD(gool_anim,uint8_t,header.unused),
+    REFL_FIELD(gool_anim,uint8_t,header.length),
+    REFL_FIELD(gool_anim,uint8_t,header.unused_2),
     REFL_FIELD(gool_anim,eid_t,eid),
     REFL_ARRAY_FIELD(gool_anim,uint8_t,data,0),
     REFL_TERM
@@ -894,14 +894,14 @@ refl_type gool_links_type = {
   .name = "gool_links",
   .flags = REFL_FLAGS_STATIC,
   .fields = {
-    REFL_FIELD(gool_links,gool_object*,self),
-    REFL_FIELD(gool_links,gool_object*,parent),
-    REFL_FIELD(gool_links,gool_object*,sibling),
-    REFL_FIELD(gool_links,gool_object*,children),
-    REFL_FIELD(gool_links,gool_object*,creator),
-    REFL_FIELD(gool_links,gool_object*,player),
-    REFL_FIELD(gool_links,gool_object*,collider),
-    REFL_FIELD(gool_links,gool_object*,interrupter),
+    REFL_FIELD(gool_links,gool_object*,self), // 0
+    REFL_FIELD(gool_links,gool_object*,parent), // 1
+    REFL_FIELD(gool_links,gool_object*,sibling), // 2
+    REFL_FIELD(gool_links,gool_object*,children), // 3
+    REFL_FIELD(gool_links,gool_object*,creator), // 4
+    REFL_FIELD(gool_links,gool_object*,player), // 5
+    REFL_FIELD(gool_links,gool_object*,collider), // 6
+    REFL_FIELD(gool_links,gool_object*,interrupter), // 7
     REFL_TERM
   }
 };
@@ -941,14 +941,22 @@ refl_type gool_process_type = {
   .name = "gool_process",
   .flags = REFL_FLAGS_STATIC,
   .fields = {
-    REFL_FIELD(gool_process,gool_object*,self),
-    REFL_FIELD(gool_process,gool_object*,parent),
-    REFL_FIELD(gool_process,gool_object*,sibling),
-    REFL_FIELD(gool_process,gool_object*,children),
-    REFL_FIELD(gool_process,gool_object*,creator),
-    REFL_FIELD(gool_process,gool_object*,player),
-    REFL_FIELD(gool_process,gool_object*,collider),
-    REFL_FIELD(gool_process,gool_object*,interrupter),
+    // REFL_FIELD(gool_process,gool_object*,self),
+    // REFL_FIELD(gool_process,gool_object*,parent),
+    // REFL_FIELD(gool_process,gool_object*,sibling),
+    // REFL_FIELD(gool_process,gool_object*,children),
+    // REFL_FIELD(gool_process,gool_object*,creator),
+    // REFL_FIELD(gool_process,gool_object*,player),
+    // REFL_FIELD(gool_process,gool_object*,collider),
+    // REFL_FIELD(gool_process,gool_object*,interrupter),
+    REFL_FIELD(gool_process,gool_object*,links[0]),
+    REFL_FIELD(gool_process,gool_object*,links[1]),
+    REFL_FIELD(gool_process,gool_object*,links[2]),
+    REFL_FIELD(gool_process,gool_object*,links[3]),
+    REFL_FIELD(gool_process,gool_object*,links[4]),
+    REFL_FIELD(gool_process,gool_object*,links[5]),
+    REFL_FIELD(gool_process,gool_object*,links[6]),
+    REFL_FIELD(gool_process,gool_object*,links[7]),
     REFL_FIELD(gool_process,gool_vectors,vectors),
     REFL_ARRAY_FIELD(gool_process,vec,vectors_v,6),
     REFL_ARRAY_FIELD(gool_process,ang,vectors_a,6),
@@ -1067,15 +1075,15 @@ refl_type gool_nearest_query_type = {
 };
 
 
-refl_type gool_bound_type = {
-  .name = "gool_bound",
-  .flags = REFL_FLAGS_STATIC,
-  .fields = {
-    REFL_FIELD(gool_bound,bound,bound),
-    REFL_FIELD(gool_bound,gool_object*,obj),
-    REFL_TERM
-  }
-};
+// refl_type gool_bound_type = {
+//   .name = "gool_bound",
+//   .flags = REFL_FLAGS_STATIC,
+//   .fields = {
+//     REFL_FIELD(gool_bound,bound,obj->bound),
+//     REFL_FIELD(gool_bound,gool_object*,obj),
+//     REFL_TERM
+//   }
+// };
 
 refl_type gool_move_state_type = {
   .name = "gool_move_state",
@@ -1145,11 +1153,12 @@ refl_type *types[] = {
   &gool_handle_type, &gool_colors_type, &gool_links_type, &gool_vectors_type,
   &gool_process_type, &gool_object_type,
   &gool_link_type, &gool_objnode_type, &gool_event_query_type, &gool_nearest_query_type,
-  &gool_bound_type, &gool_move_state_type, &gool_accel_state_type,
+  // &gool_bound_type,
+  &gool_move_state_type, &gool_accel_state_type,
   &gool_const_buf_type, &gool_state_ref_type,
-  &vec_type, &vec16_type, &ang_type, &ang2_type, &rgb8_type, &rgb16_type, 
+  &vec_type, &vec16_type, &ang_type, &ang2_type, &rgb8_type, &rgb16_type,
   &mat16_type, &bound_type, &texinfo_type,
-  &gool_handles, 
+  &gool_handles,
   0
 };
 

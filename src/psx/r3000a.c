@@ -3,7 +3,7 @@
    here solely for documentation purposes (sake of readability)
    these can be linked instead of the asm funcs but may not perform as well
 */
-
+#ifdef PSX
 void RGteTransformSvtx(
   svtx_frame *frame,
   void *ot,
@@ -348,3 +348,5 @@ int RFindCeilY(
   int16_t default_y) {
   return FindCeilY(obj, query, nodes_bound, collider_bound, type_a, type_b, default_y);
 }
+
+#endif

@@ -92,14 +92,18 @@ void CoreLoop(lid_t lid);
 
 //----- (80011D88) --------------------------------------------------------
 int main() {
+  printf("c1\n");
 #ifdef PSX
   use_cd = 1;
 #else
   use_cd = 0;
 #endif
+  printf("Crash Bandicoot aarch64\n");
   init();
+  printf("INITED\n");
   CoreLoop(LID_BOOTLEVEL);
   _kill();
+  printf("KILLED\n");
   return 0;
 }
 
@@ -150,7 +154,7 @@ void CoreLoop(lid_t lid) {
     is_pause_lid = lid != LID_TITLE && lid != LID_LEVELEND && lid != LID_INTRO;
     can_pause = (pbak_state == 0) && ((is_pause_lid && title_pause_state != -1) || title_pause_state > 0);
     if ((pads[0].tapped & 0x800) && can_pause) {
-      if (paused = 1 - paused) {
+      if ((paused = 1 - paused)) {
         if (!pause_obj) {
           pause_obj = GoolObjectCreate(&handles[7], 4, 4, 0, 0, 0);
           if (!ISERRORCODE(pause_obj)) {
@@ -236,10 +240,10 @@ void CoreLoop(lid_t lid) {
     LevelSpawnObjects();
     if (!paused) {
       header = (zone_header*)cur_zone->items[0];
-      if (header->flags & (ZONE_FLAG_DARK2 | ZONE_FLAG_LIGHTNING))
+      if (header->gfx.flags & (ZONE_FLAG_DARK2 | ZONE_FLAG_LIGHTNING))
         ShaderParamsUpdate(0);
       /* if (!globals->paused) { ??? */
-      if (header->flags & ZONE_FLAG_RIPPLE)
+      if (header->gfx.flags & ZONE_FLAG_RIPPLE)
         ShaderParamsUpdateRipple(0);
       /* if (!globals->paused) ???*/
       CamUpdate();
@@ -252,15 +256,15 @@ void CoreLoop(lid_t lid) {
 #endif
     header = (zone_header*)cur_zone->items[0];
     if ((cur_display_flags & GOOL_FLAG_DISPLAY_WORLDS) && header->world_count && !wgeom_disabled) {
-      if (header->flags & ZONE_FLAG_DARK2)
+      if (header->gfx.flags & ZONE_FLAG_DARK2)
         GfxTransformWorldsDark2(ot);
-      else if ((header->flags & ZONE_FLAG_FOG_LIGHTNING) == ZONE_FLAG_FOG_LIGHTNING)
+      else if ((header->gfx.flags & ZONE_FLAG_FOG_LIGHTNING) == ZONE_FLAG_FOG_LIGHTNING)
         GfxTransformWorldsDark(ot);
-      else if (header->flags & ZONE_FLAG_FOG)
+      else if (header->gfx.flags & ZONE_FLAG_FOG)
         GfxTransformWorldsFog(ot);
-      else if (header->flags & ZONE_FLAG_RIPPLE)
+      else if (header->gfx.flags & ZONE_FLAG_RIPPLE)
         GfxTransformWorldsRipple(ot);
-      else if (header->flags & ZONE_FLAG_LIGHTNING)
+      else if (header->gfx.flags & ZONE_FLAG_LIGHTNING)
         GfxTransformWorldsLightning(ot);
       else
         GfxTransformWorlds(ot);

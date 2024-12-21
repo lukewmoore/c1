@@ -1,8 +1,8 @@
 #ifndef _GL_H_
 #define _GL_H_
 
-#include "common.h"
-#include "geom.h"
+#include "../../common.h"
+#include "../../geom.h"
 #include "pcgfx.h"
 
 typedef struct {
@@ -31,7 +31,7 @@ typedef struct {
   vec2 draw_clip;
 } gl_context;
 
-extern int GLInit();
+extern int GLInit(gl_callbacks *_callbacks);
 extern int GLKill();
 extern int GLSetupPrims();
 extern void GLResetPrims(gl_context *gc);

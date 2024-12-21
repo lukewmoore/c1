@@ -280,7 +280,7 @@ typedef union {
     float w, h, d;
   };
   float c[3];
-} fdim;
+} c_fdim;
 
 /* bound types */
 typedef struct {
@@ -399,7 +399,7 @@ typedef union {
   };
   struct {
     fvec loc;
-    fdim dim;
+    c_fdim dim;
   };
 } frect;
 
@@ -588,15 +588,14 @@ typedef struct { /* texture region information; also clut_y */
 } rgninfo;
 
 typedef struct {
-  colinfo;
+  colinfo colinfo;
   uint32_t tpage;
-  rgninfo;
+  rgninfo rgninfo;
 } texinfo;
 
 typedef struct {
-  colinfo;
+  colinfo colinfo;
   union {
-    rgninfo;
     rgninfo rgninfos[0];
   };
 } texinfo2;

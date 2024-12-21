@@ -1,9 +1,9 @@
 #ifndef _F_GOOL_H_
 #define _F_GOOL_H_
 
-#include "common.h"
-#include "geom.h"
-#include "ns.h"
+#include "../common.h"
+#include "../geom.h"
+#include "../ns.h"
 
 typedef struct {
   uint32_t type;
@@ -44,12 +44,12 @@ typedef struct {
 }
 
 typedef struct {
-  gool_anim_header;
+  gool_anim_header header;
   eid_t eid;
 } gool_vertex_anim;
 
 typedef struct {
-  gool_anim_header;
+  gool_anim_header header;
   eid_t tpage;
   texinfo2 texinfos[];
 } gool_sprite_anim;
@@ -97,7 +97,7 @@ typedef struct {
 
 typedef union {
   struct {
-    gool_anim_header;
+    gool_anim_header header;
     eid_t eid;
     uint8_t data[];
   };

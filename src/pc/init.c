@@ -1,19 +1,13 @@
 #include <SDL2/SDL.h>
-#ifdef CFLAGS_GUI
-#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
-#define CIMGUI_USE_SDL
-#include "cimgui.h"
-#include "cimgui_impl.h"
-#endif
 
-#include "ns.h"
-#include "math.h"
-#include "pad.h"
-#include "pc/gfx/gl.h"
-#include "pc/time.h"
+#include "../ns.h"
+#include "../math.h"
+#include "../pad.h"
+#include "gfx/gl.h"
+#include "time.h"
 
-#define WINDOW_WIDTH  1024
-#define WINDOW_HEIGHT 768
+#define WINDOW_WIDTH  512
+#define WINDOW_HEIGHT 240
 
 SDL_Window *window = 0;
 SDL_GLContext ogl_context;
@@ -34,16 +28,9 @@ void SDLInit() {
     WINDOW_WIDTH, WINDOW_HEIGHT,
     SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
   ogl_context = SDL_GL_CreateContext(window);
-#ifdef CFLAGS_GUI
-  igCreateContext(0);
-  ImGui_ImplSDL2_InitForOpenGL(window, ogl_context);
-#endif
 }
 
 void SDLKill() {
-#ifdef CFLAGS_GUI
-  ImGui_ImplSDL2_Shutdown();
-#endif
   SDL_GL_DeleteContext(ogl_context);
   SDL_DestroyWindow(window);
   SDL_Quit();
@@ -52,9 +39,6 @@ void SDLKill() {
 void SDLUpdate() {
   SDL_Event e;
   while (SDL_PollEvent(&e)) {
-#ifdef CFLAGS_GUI
-    ImGui_ImplSDL2_ProcessEvent(&e);
-#endif
     switch (e.type) {
     case SDL_QUIT:
       done = 1;
@@ -82,9 +66,6 @@ void SDLUpdate() {
       break;
     }
   }
-#ifdef CFLAGS_GUI
-  ImGui_ImplSDL2_NewFrame();
-#endif
 }
 
 void SDLSwap() {
@@ -105,28 +86,36 @@ void SDLInput(gl_input *input) {
 }
 
 int init() {
+  printf("Initing\n");
   gl_callbacks callbacks;
   int i;
 
   PadInit(2); /* initialize 2 joypad structs */
+  printf("Padded\n");
   SetTicksElapsed(0);
+  printf("ELAPSED\n");
   SDLInit();
+  printf("SDLED\n");
   callbacks.pre_update = SDLUpdate;
   callbacks.post_update = SDLSwap;
   callbacks.ext_supported = (int (*)(const char*))SDL_GL_ExtensionSupported;
   callbacks.proc_addr = SDL_GL_GetProcAddress;
   callbacks.input = SDLInput;
   GLInit(&callbacks);
+  printf("GLED\n");
   sranda2();
+  printf("RAND\n");
   for (i=1;i<4;i++)
     insts[i] = EID_NONE;
   for (i=0;i<16;i++)
     texture_pages[i].eid = EID_NONE;
   ns.draw_skip_counter = 0;
+  printf("RETURNING\n");
   return SUCCESS;
 }
 
 int _kill() {
   GLKill();
   SDLKill();
+  return SUCCESS;
 }

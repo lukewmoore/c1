@@ -1,5 +1,5 @@
 #include <SDL2/SDL.h>
-#include "pc/pad.h"
+#include "pad.h"
 
 extern uint8_t keys[512];
 

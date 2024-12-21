@@ -1,8 +1,15 @@
 # compile output
 *.o
 c1
+build/
+.cache/
+vcpkg_installed/
+.vs/
+.vscode/
+.fleet/
 
 # user files
 streams/*
 imgui.ini
 !README.MD
+CMakeUserPresets.json

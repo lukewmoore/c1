@@ -1,13 +1,15 @@
+#ifdef PSX
 #include <LIBAPI.H>
 #include <LIBGTE.H>
 #include <LIBGS.H>
+#endif
 
-#include "ns.h"
-#include "pad.h"
-#include "psx/r3000a.h"
-#include "psx/gpu.h"
-#include "psx/card.h"
-#include "psx/cdr.h"
+#include "../ns.h"
+#include "../pad.h"
+#include "r3000a.h"
+#include "gpu.h"
+#include "card.h"
+#include "cdr.h"
 
 /* .sbss */
 long rcnt_event;
@@ -21,8 +23,9 @@ extern page_struct texture_pages[16];
 
 int init() {
   int i;
-  for (i=0;i<1024;i++)
+  for (i=0;i<1024;i++) {
     ((uint8_t*)scratch)[i] = 0; /* clear scratch memory */
+  }
   GsSetWorkBase(0); /* extended graphics lib is not used */
   InitGeom(); /* initialize gte  */
   if (use_cd) { /* use_cd? */

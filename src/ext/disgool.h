@@ -1,7 +1,7 @@
 #ifndef _DISGOOL_H_
 #define _DISGOOL_H_
 
-#include "common.h"
+#include "../common.h"
 
 #define _GopA_  ((ins >> 12) & 0xFFF)  // GOOL operand A
 #define _GopB_  ((ins      ) & 0xFFF)  // GOOL operand B
@@ -28,7 +28,7 @@
 #define MSC_Pso ((ins >> 15) & 0x1F)   // primary sub-operation
 #define MSC_Sso ((ins >> 20) & 0xF)    // secondary sub-operation
 
-#define CVM_Gop ((ins      ) & 0xFFF)  
+#define CVM_Gop ((ins      ) & 0xFFF)
 #define CVM_Lnk ((ins >> 12) & 0x7)    // link index
 #define CVM_Cdi ((ins >> 15) & 0x3F)   // color data index
 
@@ -38,13 +38,13 @@
 #define ANI_Wt  ((ins >> 16) & 0x3F)   // anim wait time
 #define ANI_Flp ((ins >> 22) & 3)      // anim flip mode
 
-#define VEC_Gop ((ins      ) & 0xFFF)  // vector gool operand input 
+#define VEC_Gop ((ins      ) & 0xFFF)  // vector gool operand input
 #define VEC_ViA ((ins >> 12) & 7)      // vector index A
 #define VEC_ViB ((ins >> 15) & 7)      // vector index B
 #define VEC_Pso ((ins >> 18) & 7)      // primary [vector] sub-operation
 #define VEC_ViC ((ins >> 21) & 7)      // vector index C
 
-#define JAL_Vs  ((ins >> 20) & 0xF)    // JAL variable skip count 
+#define JAL_Vs  ((ins >> 20) & 0xF)    // JAL variable skip count
 
 #define EVT_Gop ((ins      ) & 0xFFF)  // event gool operand input (event)
 #define EVT_Cnd ((ins >> 12) & 0x3F)   // event condition = register index

@@ -1,7 +1,7 @@
 #ifndef _PC_PAD_H_
 #define _PC_PAD_H_
 
-#include "common.h"
+#include "../common.h"
 #include "../pad.h"
 
 #define PAD_SELECT      0x100
@@ -24,4 +24,3 @@
 uint32_t SwPadRead(int idx);
 
 #endif /* _PC_PAD_H_ */
-

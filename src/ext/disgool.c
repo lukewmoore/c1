@@ -453,7 +453,7 @@ char *GoolFormatCol(char *str, uint32_t col) {
     "colormatrix.v2x", "colormatrix.v2y", "colormatrix.v2z",
     "colormatrix.v3x", "colormatrix.v3y", "colormatrix.v3z",
     "intensity.r"    , "intensity.g"    , "intensity.b"    };
-  
+
   scatf(str, " %s,", disRNameCol[col]);
   return str;
 }

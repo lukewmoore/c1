@@ -38,7 +38,6 @@ typedef struct {
   uint32_t x_offs; /* x offset of display */
   uint32_t y_offs; /* y offset of display */
   union {                 /* 7 */
-    timginfo;
     timginfo info;
   };
   uint16_t clut_ids[480]; /* C68 */

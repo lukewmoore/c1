@@ -1,8 +1,10 @@
 #ifndef _CDR_H_
 #define _CDR_H_
 
-#include "common.h"
+#include "../common.h"
+#ifdef PSX
 #include <LIBCD.H>
+#endif
 
 typedef struct {
   uint32_t nsd_num; /* sector location of nsd file */

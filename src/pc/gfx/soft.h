@@ -1,15 +1,15 @@
 #ifndef _SOFT_H_
 #define _SOFT_H_
 
-#include "common.h"
-#include "geom.h"
-#include "gool.h"
-#include "formats/svtx.h"
-#include "formats/cvtx.h"
-#include "formats/tgeo.h"
-#include "formats/wgeo.h"
-#include "formats/slst.h"
-#include "formats/zdat.h"
+#include "../../common.h"
+#include "../../geom.h"
+#include "../../gool.h"
+#include "../../formats/svtx.h"
+#include "../../formats/cvtx.h"
+#include "../../formats/tgeo.h"
+#include "../../formats/wgeo.h"
+#include "../../formats/slst.h"
+#include "../../formats/zdat.h"
 
 /* this structure is a combination of values
    some are the equivalent of GTE state/register values used in the psx implementation
@@ -84,7 +84,7 @@ extern void SwTransformWorldsDark2(poly_id_list *poly_id_list, void *ot,
   int32_t proj, int anim_phase, void **prims_tail, sw_transform_struct *params);
 
 #ifdef CFLAGS_DRAW_EXTENSIONS
-#include "level.h"
+#include "../../level.h"
 extern void SwTransformZoneQuery(zone_query *query, void *ot, void **prims_tail);
 extern void SwDrawWallMap(uint32_t *wall_bitmap, void *ot, void **prims_tail);
 extern void SwTransformObjectBounds(gool_bound *bounds, int count, void *ot,

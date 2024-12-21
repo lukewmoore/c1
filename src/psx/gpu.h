@@ -2,6 +2,7 @@
 #define _GPU_H_
 
 #include "common.h"
+#ifdef PSX
 #include <LIBGPU.H>
 
 typedef struct {
@@ -25,4 +26,5 @@ typedef struct {
   gfx_context c2;
 } gfx_context_db; /* double buffered context */
 
+#endif
 #endif /* _GPU_H_ */

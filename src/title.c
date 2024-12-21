@@ -397,10 +397,10 @@ int TitleUpdate(void *ot) {
     break;
   }
   if (cur_display_flags & GOOL_FLAG_DISPLAY_IMAGES && title->at_title) { /* main menu or title screens? */
-    cur = &title->tileinfos[0];
+    cur = &title->info.tileinfos[0];
     for (i=0;i<15;i++) { /* draw the tiled splash screen image */
       for (ii=0;ii<32;ii++) {
-        cur = &title->tileinfos[i+(ii*16)];
+        cur = &title->info.tileinfos[i+(ii*16)];
 #ifdef PSX
         sprite = (SPRT_16*)context.cur->prims_tail;
         context.cur->prims_tail += sizeof(SPRT_16);
@@ -512,7 +512,7 @@ void TitleCalcTiles(title_struct *ts, int x_offs, int y_offs) {
   uvinfo *uvinfo;
   int i, ii, idx;
 
-  TitleCalcUvs(ts->uvinfos);
+  TitleCalcUvs(ts->info.uvinfos);
 #ifdef PSX
   RECT tw;
   ts->tpage_ids[0] = GetTPage(1, 1, 256, 256);
@@ -531,8 +531,8 @@ void TitleCalcTiles(title_struct *ts, int x_offs, int y_offs) {
 #endif
   for (i=0;i<16;i++) {
     for (ii=0;ii<33;ii++,idx++) {
-      tileinfo = &ts->tileinfos[i+(ii*16)];
-      uvinfo = &ts->uvinfos[i+(ii*16)];
+      tileinfo = &ts->info.tileinfos[i+(ii*16)];
+      uvinfo = &ts->info.uvinfos[i+(ii*16)];
       tileinfo->x_idx = ii + (x_offs >> 4);
       tileinfo->y_idx = i + (y_offs >> 4);
       tileinfo->u_idx = uvinfo->u_idx;

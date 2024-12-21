@@ -1,7 +1,7 @@
 #ifndef _PC_GFX_H_
 #define _PC_GFX_H_
 
-#include "geom.h"
+#include "../../geom.h"
 
 /* gfx primitive types */
 #define PRIM_NEXT(p) (void*)((int)((p)->next) & ~3)
@@ -24,7 +24,7 @@ typedef struct {
 } prim_struct;
 
 typedef struct {
-  prim_struct;
+  prim_struct prim;
   vec verts[3];
   rgba colors[3];
   fvec uvs[3];
@@ -33,7 +33,7 @@ typedef struct {
 } poly3i;
 
 typedef struct {
-  prim_struct;
+  prim_struct prim;
   vec verts[4];
   rgba colors[4];
   fvec uvs[4];

@@ -1,5 +1,5 @@
-#include "common.h"
-#include "geom.h"
+#include "../common.h"
+#include "../geom.h"
 #include "math.h"
 
 uint16_t sin_table[1025] = {

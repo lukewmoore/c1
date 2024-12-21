@@ -1,29 +1,20 @@
 /*
  * opengl pc gfx backend
  */
-#include <GL/gl.h>
+#include <GL/glew.h>
 #include "gl.h"
 #include "pcgfx.h"
-#include "globals.h"
-#include "level.h"
-#include "pbak.h"
-#include "audio.h"
-#include "pc/gfx/tex.h"
-#include "pc/time.h"
-
-#ifdef CFLAGS_GUI
-#include "ext/gui.h"
-#define CIMGUI_USE_OPENGL2
-#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
-#include "cimgui.h"
-#include "cimgui_impl.h"
-#endif
+#include "../../globals.h"
+#include "../../level.h"
+#include "../../pbak.h"
+#include "../../audio.h"
+#include "tex.h"
+#include "../time.h"
 
 int GLCreateTexture(dim2 dim, uint8_t *buf) {
-  int texid;
-
+  GLuint texid;
   glGenTextures(1, &texid);
-  glActiveTexture(GL_TEXTURE0);
+  // glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, texid);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -61,17 +52,6 @@ extern uint32_t ticks_elapsed;
 extern rgb8 vram_fill_color, next_vram_fill_color;
 extern pbak_frame *cur_pbak_frame;
 
-#ifdef CFLAGS_GUI
-void GLInitGui() {
-  GuiInit();
-  ImGui_ImplOpenGL2_Init();
-}
-
-void GLKillGui() {
-  ImGui_ImplOpenGL2_Shutdown();
-}
-#endif
-
 int textures_inited=0;
 /* gl */
 int GLInit(gl_callbacks *_callbacks) {
@@ -79,9 +59,6 @@ int GLInit(gl_callbacks *_callbacks) {
   int i;
 
   callbacks = *_callbacks;
-#ifdef CFLAGS_GUI
-  GLInitGui();
-#endif
   TexturesInit(GLCreateTexture, GLDeleteTexture, GLUpdateTexture);
   textures_inited=1;
   screen.x = -256;
@@ -103,9 +80,6 @@ int GLKill() {
     GLDeleteTexture(image_texid);
     image_texid = 0;
   }
-#ifdef CFLAGS_GUI
-  // GLKillGui(); /* removed for now */
-#endif
   return SUCCESS;
 }
 
@@ -218,7 +192,7 @@ void GLDrawPrims(void *data, int count) {
   glDisable(GL_TEXTURE_2D);
   glEnable(GL_BLEND);
   for (i=0;i<count;i++,poly++) {
-    if (poly->type == 3)
+    if (poly->prim.type == 3)
       glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     else
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -344,8 +318,8 @@ static void GLConvertToTris(void *ot, poly3i **tris, int *count) {
       for (j=0;j<2;j++) {
         for (k=0;k<3;k++) {
           idx = idxs[((j*2)+k)%4];
-          tri.type = prim->type == 2 ? 1: 3;
-          tri.next = 0;
+          tri.prim.type = prim->type == 2 ? 1: 3;
+          tri.prim.next = 0;
           tri.verts[k] = ((poly4i*)src)->verts[idx];
 #ifdef CFLAGS_GFX_SW_PERSP
           tri.verts[k].z = -1;
@@ -354,7 +328,7 @@ static void GLConvertToTris(void *ot, poly3i **tris, int *count) {
           tri.texid = ((poly4i*)src)->texid;
           if (prim->type == 3) {
             tri.texid = -1;
-            tri.type = 3;
+            tri.prim.type = 3;
           }
           tri.flags = ((poly4i*)src)->flags;
           tri.uvs[k] = ((poly4i*)src)->uvs[idx];
@@ -414,11 +388,11 @@ void GLClear() {
   if (!(cur_display_flags & 0x80000)) {
     /* fill bg color(s) */
     header = (zone_header*)cur_zone->items[0];
-    fh = header->vram_fill_height;
+    fh = header->gfx.vram_fill_height;
     if (cur_display_flags & 0x2000) {
       fill = vram_fill_color;
       GLDrawRect(0,  12+0, 512,     fh, fill.r, fill.g, fill.b); /* top color */
-      fill = header->vram_fill;
+      fill = header->gfx.vram_fill;
       GLDrawRect(0, 12+fh, 512, 216-fh, fill.r, fill.g, fill.b); /* bottom color */
     }
     else {
@@ -439,9 +413,7 @@ void GLUpdate() {
   if (callbacks.input) {
     (*callbacks.input)(&gl_input);
   }
-#ifdef CFLAGS_GUI
-  ImGui_ImplOpenGL2_NewFrame();
-#endif
+
   cur_display_flags = next_display_flags;  /* copy display/animate flags */
   vram_fill_color = next_vram_fill_color;
   if (!paused && (cur_display_flags & 0x1000))
@@ -487,11 +459,7 @@ void GLUpdate() {
   /* simulate draw area clipping behavior in orig impl */
   GLDrawRect(0, 0, 512, 12, 0, 0, 0);
   GLDrawRect(0, 228, 512, 12, 0, 0, 0);
-#ifdef CFLAGS_GUI
-  GuiUpdate();
-  GuiDraw();
-  ImGui_ImplOpenGL2_RenderDrawData(igGetDrawData());
-#endif
+
   if (callbacks.post_update)
     (*callbacks.post_update)();
 }

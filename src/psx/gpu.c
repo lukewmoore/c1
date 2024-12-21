@@ -1,7 +1,7 @@
 #include "gpu.h"
-#include "globals.h"
-#include "ns.h"
-#include "gfx.h"
+#include "../globals.h"
+#include "../ns.h"
+#include "../gfx.h"
 
 int rcnt_stopped;       /* 8005642C */
 gfx_context_db context; /* 80058400 */
@@ -19,7 +19,7 @@ int GpuFillDisplay() {
   TermPrim(&bf);
   SetBlockFill(&bf);
   bf.r = 0; bf.g = 0; bf.b = 0;
-  bf.x = context.c2_p->draw.clip.x; 
+  bf.x = context.c2_p->draw.clip.x;
   bf.y = 0;
   bf.w = 512; bf.h = 240;
   DrawPrim(&bf);
@@ -88,9 +88,9 @@ int GpuSetupPrims() {
   int i;
 
   switch (cur_lid) {
-  case LID_TITLE: 
-  case LID_BONUSTAWNA1: 
-  case LID_BONUSBRIO: 
+  case LID_TITLE:
+  case LID_BONUSTAWNA1:
+  case LID_BONUSBRIO:
   case LID_LEVELEND:
   case LID_BONUSTAWNA2:
   case LID_BONUSCORTEX:
@@ -179,9 +179,9 @@ unsigned int GpuDrawOverlay(int brightness) { /* GpuSetBrightness??? */
 int GpuRoundTicks(int ticks) {
   if (ticks < 0)
     return 34;
-  if (ticks < 19) 
+  if (ticks < 19)
     return 17; /* 1/2 frame */
-  if (ticks < 36) 
+  if (ticks < 36)
     return 34; /* 1 frame */
   if (ticks < 53)
     return 51; /* 1 1/2 frames */
@@ -269,8 +269,7 @@ int GpuUpdate() {
   if (ns->draw_skip_counter == 0)
     DrawOTag(&context.c2_p->ot); /* draw all primitives in the draw buffer */
   /* reset tail of prim list to start of allocated prim mem */
-  context.c2_p->prims_tail = context.c1_p->prims_head; 
+  context.c2_p->prims_tail = context.c1_p->prims_head;
   RGpuResetOT(&context.c2_p->ot, 2048); /* reset the ot */
   cur_display_flags = next_display_flags;  /* copy display/animate flags */
 }
-

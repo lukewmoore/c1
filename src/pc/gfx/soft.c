@@ -373,7 +373,7 @@ void SwTransformSvtx(
       if (!res) { break; }
     }
     if (!res) { continue; }
-    if (!info.no_cull) {
+    if (!info.colinfo.no_cull) {
       ndot = (r_verts[0].x*r_verts[1].y) + (r_verts[1].x*r_verts[2].y)
            + (r_verts[2].x*r_verts[0].y) - (r_verts[0].x*r_verts[2].y)
            - (r_verts[1].x*r_verts[0].y) - (r_verts[2].x*r_verts[1].y);
@@ -381,9 +381,9 @@ void SwTransformSvtx(
     }
     prim=(poly3i*)*prims_tail;
     if (poly->is_flat_shaded) {
-      color.r=info.r;
-      color.g=info.g;
-      color.b=info.b;
+      color.r=info.colinfo.r;
+      color.g=info.colinfo.g;
+      color.b=info.colinfo.b;
       prim->colors[0]=Rgb8ToA32(color);
       prim->colors[1]=Rgb8ToA32(color);
       prim->colors[2]=Rgb8ToA32(color);
@@ -409,9 +409,9 @@ void SwTransformSvtx(
         color16.r=limit(color16.r,-0x8000,0x7FFF);
         color16.g=limit(color16.g,-0x8000,0x7FFF);
         color16.b=limit(color16.b,-0x8000,0x7FFF);
-        color16.r=((int16_t)(info.r<<4)*color16.r)>>12;
-        color16.g=((int16_t)(info.g<<4)*color16.g)>>12;
-        color16.b=((int16_t)(info.b<<4)*color16.b)>>12;
+        color16.r=((int16_t)(info.colinfo.r<<4)*color16.r)>>12;
+        color16.g=((int16_t)(info.colinfo.g<<4)*color16.g)>>12;
+        color16.b=((int16_t)(info.colinfo.b<<4)*color16.b)>>12;
         color16.r=limit(color16.r,-0x8000,0x7FFF);
         color16.g=limit(color16.g,-0x8000,0x7FFF);
         color16.b=limit(color16.b,-0x8000,0x7FFF);
@@ -421,7 +421,7 @@ void SwTransformSvtx(
         prim->colors[ii]=Rgb8ToA32(color);
       }
     }
-    if (info.type == 1) { /* textured poly? */
+    if (info.colinfo.type == 1) { /* textured poly? */
       texid = TextureLoad((texinfo*)&info, &uvs);
     }
     else
@@ -431,7 +431,7 @@ void SwTransformSvtx(
       prim->uvs[ii]=uvs[ii];
     }
     prim->texid = texid;
-    prim->flags = info.semi_trans;
+    prim->flags = info.colinfo.semi_trans;
     if (flag) {
       z_min=min(min(r_verts[0].z,r_verts[1].z),r_verts[2].z);
       z_max=max(max(r_verts[0].z,r_verts[1].z),r_verts[2].z);
@@ -442,8 +442,8 @@ void SwTransformSvtx(
     z_idx = far - (z_sum/32);
     z_idx = limit(z_idx, 0, 0x7FF);
     next = ((poly3i**)ot)[z_idx];
-    prim->next = next;
-    prim->type = 1;
+    prim->prim.next = next;
+    prim->prim.type = 1;
     ((poly3i**)ot)[z_idx] = prim;
     *prims_tail+=sizeof(poly3i);
   }
@@ -505,11 +505,11 @@ void SwTransformCvtx(
          + (r_verts[2].x*r_verts[0].y) - (r_verts[0].x*r_verts[2].y)
          - (r_verts[1].x*r_verts[0].y) - (r_verts[2].x*r_verts[1].y);
     if (ndot == 0 || (ndot ^ cull_face) < 0) {
-      if (!info.no_cull) { continue; }
+      if (!info.colinfo.no_cull) { continue; }
       idx_adj = 12;
     }
     prim=(poly3i*)*prims_tail;
-    t1=info.t1;t2=info.t2;t3=info.t3;
+    t1=info.colinfo.t1;t2=info.colinfo.t2;t3=info.colinfo.t3;
     for (ii=0;ii<3;ii++) {
       vert=poly_verts[ii];
       color.r = ((t1>=0 ?
@@ -523,7 +523,7 @@ void SwTransformCvtx(
         : (128-abs(t3))*255 + ((abs(t3)-1)*(int32_t)vert->b))*32)>>(shamt+12);
       prim->colors[ii]=Rgb8ToA32(color);
     }
-    if (info.type == 1) { /* textured poly? */
+    if (info.colinfo.type == 1) { /* textured poly? */
       texid = TextureLoad((texinfo*)&info, &uvs);
     }
     else
@@ -533,13 +533,13 @@ void SwTransformCvtx(
       prim->uvs[ii]=uvs[ii];
     }
     prim->texid = texid;
-    prim->flags = info.semi_trans;
+    prim->flags = info.colinfo.semi_trans;
     z_sum = r_verts[0].z+r_verts[1].z+r_verts[2].z;
     z_idx = far - ((z_sum/32)+idx_adj);
     z_idx = limit(z_idx, 0, 0x7FF);
     next = ((poly3i**)ot)[z_idx];
-    prim->next = next;
-    prim->type = 1;
+    prim->prim.next = next;
+    prim->prim.type = 1;
     ((poly3i**)ot)[z_idx] = prim;
     *prims_tail+=sizeof(poly3i);
   }
@@ -576,22 +576,22 @@ void SwTransformSprite(
   if (!res) { return; } /* return on fail */
   prim=(poly4i*)*prims_tail;
   info.colinfo = info2->colinfo;
-  info.rgninfo = info2->rgninfo;
+  info.rgninfo = info2->rgninfos[0]; // TODO: literally no idea...
   info.tpage = tpag;
   texid=TextureLoad(&info, &uvs);
   for (i=0;i<4;i++) {
     prim->verts[i]=r_verts[i];
-    prim->colors[i]=Rgb8ToA32(info.rgb);
+    prim->colors[i]=Rgb8ToA32(info.colinfo.rgb);
     prim->uvs[i]=uvs[i];
   }
   prim->texid=texid;
-  prim->flags=info.semi_trans;
+  prim->flags=info.colinfo.semi_trans;
   z_sum=prim->verts[0].z+prim->verts[1].z+prim->verts[2].z;
   z_idx=far-(z_sum/32);
   z_idx=limit(z_idx, 0, 0x7FF);
   next=((poly4i**)ot)[z_idx];
-  prim->next=next;
-  prim->type=2;
+  prim->prim.next=next;
+  prim->prim.type=2;
   ((poly4i**)ot)[z_idx] = prim;
   *prims_tail+=sizeof(poly4i);
 }
@@ -740,14 +740,14 @@ static void SwTransformAndShadeWorlds(
     tpag = tpags[poly->tpag_idx];
     wgeo_info = (wgeo_texinfo*)(&((uint32_t*)texinfos)[info_idx]);
     info.colinfo = wgeo_info->colinfo; /* convert to generic texinfo */
-    if (info.type == 1) {
+    if (info.colinfo.type == 1) {
        if (poly->anim_mask) {
          info_idx = anim_counter >> poly->anim_period;
          info_idx = (poly->anim_phase+info_idx) & ((poly->anim_mask<<1)|1);
          info.rgninfo = wgeo_info->rgninfos[info_idx];
        }
        else
-         info.rgninfo = wgeo_info->rgninfo;
+         info.rgninfo = wgeo_info->rgninfos[0];
        info.tpage = tpag;
        texid = TextureLoad(&info, &uvs);
     }
@@ -759,7 +759,7 @@ static void SwTransformAndShadeWorlds(
       prim->uvs[ii] = uvs[ii];
     }
     prim->texid = texid;
-    prim->flags = info.semi_trans;
+    prim->flags = info.colinfo.semi_trans;
     z_sum = prim->verts[0].z+prim->verts[1].z+prim->verts[2].z;
     z_idx = far - (z_sum/32);
     z_idx = limit(z_idx, 0, 0x7FF);
@@ -768,8 +768,8 @@ static void SwTransformAndShadeWorlds(
     else
       z_idx = min_z_idx;
     next = ((poly3i**)ot)[z_idx];
-    prim->next = next;
-    prim->type = 1;
+    prim->prim.next = next;
+    prim->prim.type = 1;
     ((poly3i**)ot)[z_idx] = prim;
     *prims_tail += sizeof(poly3i);
   }
@@ -963,7 +963,7 @@ void SwTransformWorldsDark2(
 
 #ifdef CFLAGS_DRAW_EXTENSIONS
 
-#include "level.h"
+#include "../../level.h"
 extern vec cam_trans;
 extern mat16 ms_cam_rot;
 const int rface_vert_idxes[6][4] = { { 0, 1, 2, 3 },
@@ -1041,8 +1041,8 @@ void SwTransformZoneQuery(zone_query *query, void *ot, void **prims_tail) {
       prim->texid=-1;
       prim->flags=3;
       next=((poly4i**)ot)[0x7FE];
-      prim->next=next;
-      prim->type=3;
+      prim->prim.next=next;
+      prim->prim.type=3;
       ((poly4i**)ot)[0x7FE]=prim;
       *prims_tail+=sizeof(poly4i);
     }
@@ -1088,8 +1088,8 @@ void SwDrawWallMap(uint32_t *wall_bitmap, void *ot, void **prims_tail) {
   prim->texid=wallmap_image;
   prim->flags=3;
   next=((poly4i**)ot)[0x7FE];
-  prim->next=next;
-  prim->type=2;
+  prim->prim.next=next;
+  prim->prim.type=2;
   ((poly4i**)ot)[0x7FE]=prim;
   *prims_tail+=sizeof(poly4i);
 }
@@ -1105,12 +1105,12 @@ void SwTransformObjectBounds(gool_bound *bounds, int count, void *ot, void **pri
   for (i=0;i<count;i++) {
     bound = &bounds[i];
     for (ii=0;ii<8;ii++) {
-      if (ii%2) { u_vert.x = bound->p1.x >> 8; }
-      else { u_vert.x = bound->p2.x >> 8; }
-      if ((ii/2)%2) { u_vert.y = bound->p1.y >> 8; }
-      else { u_vert.y = bound->p2.y >> 8; }
-      if ((ii/4)%2) { u_vert.z = bound->p1.z >> 8; }
-      else { u_vert.z = bound->p2.z >> 8; }
+      if (ii%2) { u_vert.x = bound->obj->bound.p1.x >> 8; }
+      else { u_vert.x = bound->obj->bound.p2.x >> 8; }
+      if ((ii/2)%2) { u_vert.y = bound->obj->bound.p1.y >> 8; }
+      else { u_vert.y = bound->obj->bound.p2.y >> 8; }
+      if ((ii/4)%2) { u_vert.z = bound->obj->bound.p1.z >> 8; }
+      else { u_vert.z = bound->obj->bound.p2.z >> 8; }
       u_vert.x -= (cam_trans.x >> 8);
       u_vert.y -= (cam_trans.y >> 8);
       u_vert.z -= (cam_trans.z >> 8);
@@ -1128,8 +1128,8 @@ void SwTransformObjectBounds(gool_bound *bounds, int count, void *ot, void **pri
       prim->texid=-1;
       prim->flags=3;
       next=((poly4i**)ot)[0x7FE];
-      prim->next=next;
-      prim->type=3;
+      prim->prim.next=next;
+      prim->prim.type=3;
       ((poly4i**)ot)[0x7FE]=prim;
       *prims_tail+=sizeof(poly4i);
     }

@@ -1,12 +1,12 @@
 #ifndef _F_ZDAT_H_
 #define _F_ZDAT_H_
 
-#include "common.h"
-#include "geom.h"
-#include "ns.h"
+#include "../common.h"
+#include "../geom.h"
+#include "../ns.h"
 
-#include "formats/gool.h"
-#include "formats/wgeo.h"
+#include "gool.h"
+#include "wgeo.h"
 
 #define ZONE_FLAG_UP_DOWN               0x1
 #define ZONE_FLAG_SOLID_BOTTOM          0x2
@@ -40,7 +40,7 @@ typedef struct {
   wgeo_polygon *polygons;
   wgeo_vertex *vertices;
   wgeo_texinfo *texinfos;
-  entry *tpages[8];
+  struct _entry *tpages[8];
 } zone_world;
 
 typedef struct {
@@ -76,7 +76,6 @@ typedef struct {
   ns_loadlist loadlist;
   uint32_t display_flags;
   union {
-    zone_gfx;
     zone_gfx gfx;
   };
 } zone_header;

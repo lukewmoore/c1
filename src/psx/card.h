@@ -1,8 +1,10 @@
 #ifndef _CARD_H_
 #define _CARD_H_
 
-#include "common.h"
+#include "../common.h"
+#ifdef PSX
 #include <LIBAPI.H>
+#endif
 
 #define CARD_FLAG_PENDING_IO   1
 #define CARD_FLAG_ERROR        2

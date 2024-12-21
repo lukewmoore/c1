@@ -1,5 +1,7 @@
 #include "card.h"
+#ifdef PSX
 #include <LIBMCRD.H>
+#endif
 
 /* .sdata */
 card_struct *card        =  0; /* 80056564; gp[0x5A] */

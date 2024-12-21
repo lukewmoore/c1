@@ -715,17 +715,17 @@ int TgeoOnLoad(entry *tgeo) {
   if (cur_lid != LID_TITLE && cur_lid != LID_INTRO) {
     for (i=0;i<header->texinfo_count;i++) {
       info = (tgeo_texinfo*)info_p;
-      if (info->type == 1 && (info->tpage & 1))
+      if (info->colinfo.type == 1 && (info->tpage & 1)) // TODO: originally info->rgninfo.tpage
         info->tpage = (uint32_t)NSProbe(info->tpage); /* TODO: union? */
-      info_p += info->type == 1 ? sizeof(tgeo_texinfo) : sizeof(tgeo_colinfo);
+      info_p += info->colinfo.type == 1 ? sizeof(tgeo_texinfo) : sizeof(tgeo_colinfo);
     }
   }
   else {
     for (i=0;i<header->texinfo_count;i++) {
       info = (tgeo_texinfo*)info_p;
-      if (info->type == 1 && (info->tpage & 1))
+      if (info->colinfo.type == 1 && (info->tpage & 1))
         NSOpen(&info->tpage, 0, 1); /* TODO: union? */
-      info_p += info->type == 1 ? sizeof(tgeo_texinfo) : sizeof(tgeo_colinfo);
+      info_p += info->colinfo.type == 1 ? sizeof(tgeo_texinfo) : sizeof(tgeo_colinfo);
     }
   }
   return SUCCESS;
@@ -822,7 +822,7 @@ void GfxUpdateMatrices() {
   SwMulMatrix(&mn_cam_rot, &m1);
 #endif
   header = (zone_header*)cur_zone->items[0];
-  far_color = header->far_color;
+  far_color = header->gfx.far_color;
 #ifdef PSX
   SetFarColor(far_color.r, far_color.g, far_color.b);
 #else
@@ -843,7 +843,7 @@ void GfxUpdateMatrices() {
   mb[2][0]=       -m[2][0];mb[2][1]=       -m[2][1];mb[2][2]=       -m[2][2];
   GfxCopyMatrix((mat16*)mb, &ms_cam_rot);
   GfxCopyMatrix(&ms_cam_rot, &ms_cam_rot2);
-  if (header->flags & 0x1000) {
+  if (header->gfx.flags & 0x1000) {
     /* linearly ramp cam up and down approx. every 4 seconds or 128 draws */
     y_offs = abs(frames_elapsed % 128 - 64)*800;
     cam_trans_prev.y = y_offs + 901600;
@@ -878,7 +878,7 @@ void GfxUpdateMatrices() {
   screen_shake = (y_offs ? y_offs < 0 ? ~y_offs : 1-y_offs : 0) << 8;
   cam_trans_ro = cam_trans; /* 80061920 */
   cam_rot_ro = cam_rot;     /* 8006192C */
-  if (header->flags & 0x1000)
+  if (header->gfx.flags & 0x1000)
     cam_rot_xz = 0;
   else {
     cam_trans_prev = cam_trans;
@@ -916,20 +916,20 @@ static inline int GfxCalcObjectZoneMatrices(
   vec trans,*obj_trans,dir,cdir;
 
   header=(zone_header*)cur_zone->items[0];
-  far=header->visibility_depth>>8;
+  far=header->gfx.visibility_depth>>8;
   colors=&obj->colors;
-  switch (header->unknown_a) { /* TODO: rename 'unknown_a' to 'shader'? */
+  switch (header->gfx.unknown_a) { /* TODO: rename 'unknown_a' to 'shader'? */
   case 2:
     z=max((r_trans->z-dword_800618B8)*8, 0);
     if (z > 0x7FFF) { return 0; }
     /* TODO: add calculated z value to 'ambient' zone colors (at 0x318) */
     for (i=0;i<12;i++) {
-      val=header->object_colors.l[i];
+      val=header->gfx.object_colors.l[i];
       val=min(z+val, 0x7FFF);
       colors->l[i]=val;
     }
     for (i=0;i<12;i++) {
-      val=header->object_colors.c[i];
+      val=header->gfx.object_colors.c[i];
       val=min(z+val, 0x1000);
       colors->c[i]=val;
     }
@@ -939,7 +939,7 @@ static inline int GfxCalcObjectZoneMatrices(
       z=max((r_trans->z-dword_800618B8)/4, 0);
       if (z > 28000) { return 0; }
       for (i=0;i<24;i++) {
-        val=header->object_colors.a[i];
+        val=header->gfx.object_colors.a[i];
         val=max(val-z, 0);
         colors->a[i]=val;
       }
@@ -951,10 +951,10 @@ static inline int GfxCalcObjectZoneMatrices(
     break;
   case 4:
     if (pause_obj)
-      trans=pause_obj->vectors.trans;
+      trans=pause_obj->process.vectors.trans;
     else
-      trans=player->vectors.trans; /* TODO: player? or crash? */
-    obj_trans=&obj->vectors.trans;
+      trans=player->process.vectors.trans; /* TODO: player? or crash? */
+    obj_trans=&obj->process.vectors.trans;
     colors->color.r = 0;
     colors->color.g = 0;
     colors->color.b = 0;
@@ -1013,7 +1013,7 @@ int GfxCalcObjectMatrices(svtx_frame *frame, tgeo_header *t_header,
   uint32_t status_b;
 
   r_trans=&m_trans.t;
-  vectors=&obj->vectors;
+  vectors=&obj->process.vectors;
   colors=&obj->colors;
   if (zdist)
     *zdist = 0;
@@ -1029,7 +1029,7 @@ int GfxCalcObjectMatrices(svtx_frame *frame, tgeo_header *t_header,
 #endif
   if (!(cur_display_flags & 0x10000)) {
     header=(zone_header*)cur_zone->items[0];
-    far=header->visibility_depth>>8;
+    far=header->gfx.visibility_depth>>8;
     //if (r_trans->z > (far?far:12000)) { return 0; }
     status_b = obj->process.status_b;
     colors = &obj->colors;
@@ -1110,8 +1110,8 @@ void GfxTransformSvtx(svtx_frame *frame, void *ot, gool_object *obj) {
       ot,
       polys,
       header,
-      obj->scale.x,
-      obj->size + 0x800-(screen_proj/2),
+      obj->process.vectors.scale.x,
+      obj->process.size + 0x800-(screen_proj/2),
       prims_tail,
       (rect28*)uv_map,
       1,
@@ -1133,7 +1133,7 @@ void GfxTransformCvtx(cvtx_frame *frame, void *ot, gool_object *obj) {
   header = (tgeo_header*)tgeo->items[0];
   polys = (tgeo_polygon*)tgeo->items[1];
   z_dist = 0;
-  if (obj->status_b & 0x200) {
+  if (obj->process.status_b & 0x200) {
     z_header = (zone_header*)cur_zone->items[0];
 #ifdef PSX
     res = RGteCalcSpriteRotMatrix(
@@ -1146,13 +1146,13 @@ void GfxTransformCvtx(cvtx_frame *frame, void *ot, gool_object *obj) {
       z_header->visibility_depth >> 8);
 #else
     res = SwCalcSpriteRotMatrix(
-      &obj->vectors,
+      &obj->process.vectors,
       (gool_vectors*)&cam_trans_prev,
       1,
       0,
       &ms_rot,
       screen_proj,
-      z_header->visibility_depth >> 8,
+      z_header->gfx.visibility_depth >> 8,
       &params);
 #endif
   }
@@ -1178,8 +1178,8 @@ void GfxTransformCvtx(cvtx_frame *frame, void *ot, gool_object *obj) {
       ot,
       polys,
       header,
-      obj->scale.x,
-      obj->size + 0x800 - (screen_proj/2),
+      obj->process.vectors.scale.x,
+      obj->process.size + 0x800 - (screen_proj/2),
       prims_tail,
       (rect28*)uv_map,
       z_dist,
@@ -1389,24 +1389,24 @@ void GfxTransformFragment(gool_frag *frag, int32_t z, eid_t tpag,
   prims_tail=GLGetPrimsTail();
   prim=(poly4i*)(*prims_tail);
   info.colinfo = frag->texinfo.colinfo;
-  info.rgninfo = frag->texinfo.rgninfo;
+  info.rgninfo = frag->texinfo.rgninfos[0]; // TODO: was just rgninfo;
   info.tpage = tpag;
   texid=TextureLoad(&info, &uvs);
   for (i=0;i<4;i++) {
     prim->verts[i]=r_verts[i];
     /*prim->colors[i]=info->rgb;*/
-    prim->colors[i]=Rgb8ToA32(info.rgb);
+    prim->colors[i]=Rgb8ToA32(info.colinfo.rgb);
     prim->uvs[i]=uvs[i];
   }
   prim->texid=texid;
-  prim->flags=info.semi_trans;
+  prim->flags=info.colinfo.semi_trans;
   z_sum=prim->verts[0].z+prim->verts[1].z+prim->verts[2].z;
   z_dist=z+(0x800-screen_proj/2); /* far??? */
   z_idx=z_dist-(z_sum/32);
   z_idx=limit(z_idx, 0, 0x7FF);
   next=((poly4i**)ot)[z_idx];
-  prim->next=next;
-  prim->type=2;
+  prim->prim.next=next;
+  prim->prim.type=2;
   ((poly4i**)ot)[z_idx]=prim;
   *prims_tail+=sizeof(poly4i);
 }
@@ -1440,32 +1440,32 @@ void GfxTransformFontChar(gool_object *obj, gool_glyph *glyph, int32_t z,
   prims_tail=GLGetPrimsTail();
   prim=(poly4i*)*prims_tail;
   info.colinfo = glyph->texinfo.colinfo;
-  info.rgninfo = glyph->texinfo.rgninfo;
+  info.rgninfo = glyph->texinfo.rgninfos[0];
   info.tpage = tpag;
   texid=TextureLoad(&info, &uvs);
   for (i=0;i<4;i++) {
     prim->verts[i]=r_verts[i];
     if (gouraud) {
-      rgb.r = (info.r*obj->vert_colors[i].r)>>8;
-      rgb.g = (info.g*obj->vert_colors[i].g)>>8;
-      rgb.b = (info.b*obj->vert_colors[i].b)>>8;
+      rgb.r = (info.colinfo.r*obj->colors.vert_colors[i].r)>>8;
+      rgb.g = (info.colinfo.g*obj->colors.vert_colors[i].g)>>8;
+      rgb.b = (info.colinfo.b*obj->colors.vert_colors[i].b)>>8;
       prim->colors[i]=Rgb8ToA32(rgb);
     }
     else {
       // prim->colors[i]=info.rgb;
-      prim->colors[i]=Rgb8ToA32(info.rgb);
+      prim->colors[i]=Rgb8ToA32(info.colinfo.rgb);
     }
     prim->uvs[i]=uvs[i];
   }
   prim->texid=texid;
-  prim->flags=info.semi_trans;
+  prim->flags=info.colinfo.semi_trans;
   z_sum=prim->verts[0].z+prim->verts[1].z+prim->verts[2].z;
   z_dist=z+(0x800-screen_proj/2); /* far??? */
   z_idx=z_dist-(z_sum/32);
   z_idx=limit(z_idx, 0, 0x7FF);
   next=((poly4i**)ot)[z_idx];
-  prim->next=next;
-  prim->type=2;
+  prim->prim.next=next;
+  prim->prim.type=2;
   ((poly4i**)ot)[z_idx]=prim;
   *prims_tail+=sizeof(poly4i);
 }
@@ -1554,16 +1554,16 @@ static inline void GfxGetFar(int *far, int *shamt) {
   int _far,_shamt;
 
   header=(zone_header*)cur_zone->items[0];
-  visibility_depth=header->visibility_depth;
+  visibility_depth=header->gfx.visibility_depth;
   lid=ns.ldat->lid;
   if (lid == LID_ROADTONOWHERE || lid == LID_THEHIGHROAD) {
     _far=((visibility_depth-(3200*fog_z))>>8)-1600;
-    _shamt=header->unknown_b;
+    _shamt=header->gfx.unknown_b;
     dword_800618B8=_far+2000;
   }
   else {
     _far=(visibility_depth>>8)-800;
-    _shamt=header->unknown_b;
+    _shamt=header->gfx.unknown_b;
     if (_shamt)
       _far-=1200;
     dword_800618B8=_far+800;
@@ -1855,10 +1855,10 @@ void GfxAnimMapPaths(uint32_t flags_a, uint32_t flags_b) {
       poly = &polys[poly_idx];
       bit_idx = poly_idx2 % 32;
       mask = (1 << bit_idx);
-      if ((poly_idx2 < 32 && (flags_a & mask)) 
+      if ((poly_idx2 < 32 && (flags_a & mask))
        || (poly_idx2 >= 32 && (flags_b & mask)))
         poly->anim_mask = 7;
-      else 
+      else
         poly->anim_mask = 0;
     }
   }

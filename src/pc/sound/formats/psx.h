@@ -1,8 +1,8 @@
 #ifndef _F_PSX_H_
 #define _F_PSX_H_
 
-#include "common.h"
-#include "pc/sound/formats/smf.h"
+#include "../../../common.h"
+#include "smf.h"
 
 typedef struct { /* sep header */
   char type[4];
