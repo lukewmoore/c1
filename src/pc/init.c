@@ -86,31 +86,24 @@ void SDLInput(gl_input *input) {
 }
 
 int init() {
-  printf("Initing\n");
   gl_callbacks callbacks;
   int i;
 
   PadInit(2); /* initialize 2 joypad structs */
-  printf("Padded\n");
   SetTicksElapsed(0);
-  printf("ELAPSED\n");
   SDLInit();
-  printf("SDLED\n");
   callbacks.pre_update = SDLUpdate;
   callbacks.post_update = SDLSwap;
   callbacks.ext_supported = (int (*)(const char*))SDL_GL_ExtensionSupported;
   callbacks.proc_addr = SDL_GL_GetProcAddress;
   callbacks.input = SDLInput;
   GLInit(&callbacks);
-  printf("GLED\n");
   sranda2();
-  printf("RAND\n");
   for (i=1;i<4;i++)
     insts[i] = EID_NONE;
   for (i=0;i<16;i++)
     texture_pages[i].eid = EID_NONE;
   ns.draw_skip_counter = 0;
-  printf("RETURNING\n");
   return SUCCESS;
 }
 

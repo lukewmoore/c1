@@ -92,18 +92,14 @@ void CoreLoop(lid_t lid);
 
 //----- (80011D88) --------------------------------------------------------
 int main() {
-  printf("c1\n");
 #ifdef PSX
   use_cd = 1;
 #else
   use_cd = 0;
 #endif
-  printf("Crash Bandicoot aarch64\n");
   init();
-  printf("INITED\n");
   CoreLoop(LID_BOOTLEVEL);
   _kill();
-  printf("KILLED\n");
   return 0;
 }
 

@@ -94,10 +94,8 @@ void TexturesInit(
       atlas->rect.h = 128;
       atlas->invalid = 0;
       atlas->tpage_id = -1; /* not associated with a tpage yet...*/
-      printf("Creating texture with dimensions %dx%d\n", atlas->rect.dim.w, atlas->rect.dim.h);
       atlas->texid = (*cache.create)(atlas->rect.dim, 0);
       data += w*128*sizeof(uint32_t);
-      printf("DDDD\n");
     }
   }
   // cache.global_count = 0;
