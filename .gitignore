@@ -7,6 +7,7 @@ vcpkg_installed/
 .vs/
 .vscode/
 .fleet/
+.idea/
 
 # user files
 streams/*

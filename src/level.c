@@ -64,7 +64,7 @@ int LdatInit() {
   zone_path *path_spawn;
   uint32_t progress_spawn;
   zone_header *header;
-  int idx, ref_inc;
+  uint32_t idx, ref_inc;
 
   ldat = ns.ldat;
   pbak_state = 0;

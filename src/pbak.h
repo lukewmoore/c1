@@ -1,13 +1,10 @@
-#ifndef _PBAK_H_
-#define _PBAK_H_
+#pragma once
 
 #include "common.h"
-#include "ns.h"
 #include "formats/pbak.h"
+#include "ns.h"
 
 extern int PbakInit();
 extern int PbakKill();
-extern void PbakPlay(eid_t*);
-extern void PbakChoose(eid_t*);
-
-#endif /* _PBAK_H_ */
+extern void PbakPlay(eid_t *);
+extern void PbakChoose(eid_t *);

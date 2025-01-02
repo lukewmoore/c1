@@ -22,7 +22,7 @@ extern page_struct texture_pages[16];
 
 void SDLInit() {
   SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
-  window = SDL_CreateWindow("c1",
+  window = SDL_CreateWindow("Crash Bandicoot",
     SDL_WINDOWPOS_UNDEFINED,
     SDL_WINDOWPOS_UNDEFINED,
     WINDOW_WIDTH, WINDOW_HEIGHT,

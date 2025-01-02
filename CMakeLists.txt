@@ -1,15 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_C_COMPILER "gcc")
-set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BASEPATH "${CMAKE_SOURCE_DIR}")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g3 -O0")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g3 -O0 -Wno-error=address -Wno-pointer-to-int-cast")
 
-# add custom flags
-# -DCFLAGS_GFX_SW_PERSP -DCFLAGS_DRAW_EXTENSIONS -DCFLAGS_GOOL_DEBUG
 add_definitions(-DCFLAGS_GFX_SW_PERSP -DCFLAGS_DRAW_EXTENSIONS -DCFLAGS_GOOL_DEBUG)
-# -g3 -O0
 
 project(c1)
 

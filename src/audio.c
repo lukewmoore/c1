@@ -1,9 +1,9 @@
 #include "audio.h"
-#include "midi.h"
 #include "globals.h"
-#include "math.h"
 #include "gool.h"
 #include "level.h"
+#include "math.h"
+#include "midi.h"
 
 #ifdef PSX
 #include "psx/r3000a.h"
@@ -11,49 +11,49 @@
 #else
 #include "pc/gfx/soft.h"
 typedef struct {
-  int left;
-  int right;
+    int left;
+    int right;
 } Volume;
 #endif
 
 typedef struct {
-  uint32_t flags;
-  uint32_t unknown;
-  gool_object *obj;
-  int8_t delay_counter;
-  int8_t sustain_counter;
-  int16_t amplitude;
-  uint16_t case7val;
-  int16_t pitch;
-  vec r_trans;
-  vec trans;
-  int16_t tgt_amplitude;
-  int16_t tgt_pitch;
-  int32_t ramp_counter;
-  int32_t ramp_step;
-  int32_t glide_counter;
-  int32_t glide_step;
+    uint32_t flags;
+    uint32_t unknown;
+    gool_object *obj;
+    int8_t delay_counter;
+    int8_t sustain_counter;
+    int16_t amplitude;
+    uint16_t case7val;
+    int16_t pitch;
+    vec r_trans;
+    vec trans;
+    int16_t tgt_amplitude;
+    int16_t tgt_pitch;
+    int32_t ramp_counter;
+    int32_t ramp_step;
+    int32_t glide_counter;
+    int32_t glide_step;
 } audio_voice_params;
 
 typedef struct {
-  int id;
-  union {
-    audio_voice_params params;
-  };
+    int id;
+    union {
+        audio_voice_params params;
+    };
 } audio_voice;
 
 /* .sbss */
-int voice_id_ctr;                /* 8005663C; gp[0x90] */
-Volume spatial_vol;              /* 80056640; gp[0x91] */
+int voice_id_ctr;   /* 8005663C; gp[0x90] */
+Volume spatial_vol; /* 80056640; gp[0x91] */
 #ifdef PSX
 char spu_alloc_top[SPU_MALLOC_SIZE]; /* 80056670; gp[0x9D] */
 #endif
 /* .bss */
 #ifdef PSX
-char seq_attr_tbl[2*SS_SEQ_TABSIZ]; /* 80056EE4 */
+char seq_attr_tbl[2 * SS_SEQ_TABSIZ]; /* 80056EE4 */
 #endif
 audio_voice voices[24];          /* 80056804 */
-char keys_status[24];            /* 80056E64 */
+unsigned char keys_status[24];   /* 80056E64 */
 audio_voice_params voice_params; /* 80056E7C */
 
 #define master_voice voices[23]
@@ -74,184 +74,189 @@ extern uint32_t seq2_vol;
 //----- (8002FDE0) --------------------------------------------------------
 int AudioInit() {
 #ifdef PSX
-  SpuCommonAttr attr;
+    SpuCommonAttr attr;
 #endif
-  int reverb_mode, i;
+    int reverb_mode, i;
 
-  for (i=0;i<24;i++)
-    voices[i].params.flags &= ~8;
+    for (i = 0; i < 24; i++) {
+        voices[i].params.flags &= ~8;
+    }
 #ifdef PSX
-  SsInit();
-  /* set SEQ/SEP data attribute table area,
-     max times SsSeqOpen can be called before more data cannot be opened until SsSeqClose is called = 1
-     there will be 2 SEQs in any SEP opened */
-  SsSetTableSize(seq_attr_tbl, 1, 2);
-  /* initialize sound buffer memory management
-     specify the start address of the memory management table (dword_80056670)
-     there will be 0 calls to SpuMalloc following this
-     so the size of the area at 80056670 will be SPU_MALLOC_RECSIZ*(0+1) bytes = SPU_MALLOC_RECSIZ bytes */
-  SpuInitMalloc(0, spu_alloc_top);
-  /* set default master volume for voices */
-  attr.mask = 3;
-  attr.mvol.left = 0x3FFF;
-  attr.mvol.right = 0x3FFF;
-  SpuSetCommonAttr(&attr);
-  /* ... */
-  SpuSetTransferMode(0);
+    SsInit();
+    /* set SEQ/SEP data attribute table area,
+       max times SsSeqOpen can be called before more data cannot be opened until SsSeqClose is called = 1
+       there will be 2 SEQs in any SEP opened */
+    SsSetTableSize(seq_attr_tbl, 1, 2);
+    /* initialize sound buffer memory management
+       specify the start address of the memory management table (dword_80056670)
+       there will be 0 calls to SpuMalloc following this
+       so the size of the area at 80056670 will be SPU_MALLOC_RECSIZ*(0+1) bytes = SPU_MALLOC_RECSIZ bytes */
+    SpuInitMalloc(0, spu_alloc_top);
+    /* set default master volume for voices */
+    attr.mask = 3;
+    attr.mvol.left = 0x3FFF;
+    attr.mvol.right = 0x3FFF;
+    SpuSetCommonAttr(&attr);
+    /* ... */
+    SpuSetTransferMode(0);
 #else
-  SwAudioInit();
-  /* route midi audio to voice 0 */
-  SwVoiceSetCallback(0, SwMidiProcess);
-  /* set gain to that of 8 simultaneously sounded voices */
-  SwVoiceSetGain(0, 8.0f);
+    SwAudioInit();
+    /* route midi audio to voice 0 */
+    SwVoiceSetCallback(0, SwMidiProcess);
+    /* set gain to that of 8 simultaneously sounded voices */
+    SwVoiceSetGain(0, 8.0f);
 #endif
-  /* set inital values for master voice */
-  master_voice.params.delay_counter = 1;
-  master_voice.params.sustain_counter = 128;
-  master_voice.params.amplitude = 0x3FFF;
-  master_voice.params.pitch = 0x1000;
-  master_voice.params.obj = 0;
-  master_voice.params.case7val = 0;
-  master_voice.params.r_trans.x = 0;
-  master_voice.params.r_trans.y = 0;
-  master_voice.params.r_trans.z = 0;
-  master_voice.params.flags = (voice_params.flags & 0xFFFFF000) | 0x600;
-  /* set reverb mode for levels with reverb */
-  switch (cur_lid) {
-  case LID_GENERATORROOM:
-  case LID_TEMPLERUINS:
-  case LID_JAWSOFDARKNESS:
-  case LID_BONUSCORTEX:
-    reverb_mode = 5;
-    break;
-  case LID_BONUSBRIO:
-    reverb_mode = 3;
-    break;
-  default:
-    reverb_mode = 0;
-  }
-  if (reverb_mode)
-    AudioSetReverbAttr(reverb_mode, 0x2000, 0x2000, 0, 0);
-  /* set init_vol (volume for voices) as sfx volume */
-  AudioSetVoiceMVol((uint32_t)(0x3FFF00 * sfx_vol) >> 16);
-  fade_vol = 0x3FFF;
-  fade_vol_step = 0;
-  seq2_vol = 0;
-  /* finally set master volume */
+    /* set inital values for master voice */
+    master_voice.params.delay_counter = 1;
+    master_voice.params.sustain_counter = 127;
+    master_voice.params.amplitude = 0x3FFF;
+    master_voice.params.pitch = 0x1000;
+    master_voice.params.obj = 0;
+    master_voice.params.case7val = 0;
+    master_voice.params.r_trans.x = 0;
+    master_voice.params.r_trans.y = 0;
+    master_voice.params.r_trans.z = 0;
+    master_voice.params.flags = (voice_params.flags & 0xFFFFF000) | 0x600;
+    /* set reverb mode for levels with reverb */
+    switch (cur_lid) {
+    case LID_GENERATORROOM:
+    case LID_TEMPLERUINS:
+    case LID_JAWSOFDARKNESS:
+    case LID_BONUSCORTEX:
+        reverb_mode = 5;
+        break;
+    case LID_BONUSBRIO:
+        reverb_mode = 3;
+        break;
+    default:
+        reverb_mode = 0;
+    }
+    if (reverb_mode) {
+        AudioSetReverbAttr(reverb_mode, 0x2000, 0x2000, 0, 0);
+    }
+    /* set init_vol (volume for voices) as sfx volume */
+    AudioSetVoiceMVol((uint32_t)(0x3FFF00 * sfx_vol) >> 16);
+    fade_vol = 0x3FFF;
+    fade_vol_step = 0;
+    seq2_vol = 0;
+    /* finally set master volume */
 #ifdef PSX
-  SsSetMVol(127, 127);
+    SsSetMVol(127, 127);
 #else
-  SwSetMVol(127);
+    SwSetMVol(127);
 #endif
-  return SUCCESS;
+    return SUCCESS;
 }
 
 //----- (8002FFC0) --------------------------------------------------------
 int AudioKill() {
 #ifdef PSX
-  SpuReverbAttr attr;
+    SpuReverbAttr attr;
 
-  attr.mask = 7;
-  attr.mode = 0;
-  attr.depth.left = 0;
-  attr.depth.right = 0;
-  SpuSetReverbModeParam(&attr);
-  SpuSetReverb(0);
+    attr.mask = 7;
+    attr.mode = 0;
+    attr.depth.left = 0;
+    attr.depth.right = 0;
+    SpuSetReverbModeParam(&attr);
+    SpuSetReverb(0);
 #else
-  SwAudioKill();
+    SwAudioKill();
 #endif
-  return SUCCESS;
+    return SUCCESS;
 }
 
 //----- (8002FFFC) --------------------------------------------------------
 void AudioSetVoiceMVol(uint32_t vol) {
-  init_vol = vol;
+    init_vol = vol;
 }
 
 //----- (80030008) --------------------------------------------------------
 int AudioSetReverbAttr(int mode, int16_t depth_left, int16_t depth_right, int delay, int feedback) {
 #ifdef PSX
-  SpuReverbAttr attr;
+    SpuReverbAttr attr;
 
-  attr.mask = 7;
-  attr.mode = mode | 0x100;
-  attr.depth.left = depth_left;
-  attr.depth.right = depth_right;
-  if (mode == 7 || mode == 8) {
-    attr.delay = delay;
-    attr.feedback = feedback;
-  }
-  SpuSetReverbModeParam(&attr);
-  SpuSetReverbDepth(&attr);
-  SpuSetReverb(!!mode);
+    attr.mask = 7;
+    attr.mode = mode | 0x100;
+    attr.depth.left = depth_left;
+    attr.depth.right = depth_right;
+    if (mode == 7 || mode == 8) {
+        attr.delay = delay;
+        attr.feedback = feedback;
+    }
+    SpuSetReverbModeParam(&attr);
+    SpuSetReverbDepth(&attr);
+    SpuSetReverb(!!mode);
 #endif
-  return 0;
+    return 0;
 }
 
 //----- (80030078) --------------------------------------------------------
 static Volume AudioSpatialize(vec *v, int vol) {
-  lid_t lid;
-  vec va;
-  uint32_t mag, amp;
-  int32_t ang_xz;
-  uint16_t left, right;
+    lid_t lid;
+    vec va;
+    uint32_t mag, amp;
+    int32_t ang_xz;
+    uint16_t left, right;
 
-  va.x = v->x / 32; /* 3 or 15 bit frac fixed point */
-  va.y = v->y / 32;
-  va.z = (v->z-(1200<<8)) / 32;
-  lid = ns.ldat->lid;
-  /* orig impl had a left-over unused call to SqrMagnitude2 in the first if block */
+    va.x = v->x / 32; /* 3 or 15 bit frac fixed point */
+    va.y = v->y / 32;
+    va.z = (v->z - (1200 << 8)) / 32;
+    lid = ns.ldat->lid;
+    /* orig impl had a left-over unused call to SqrMagnitude2 in the first if block */
 #ifdef PSX
-  if (lid == LID_STORMYASCENT || lid == LID_SLIPPERYCLIMB)
-    mag = RSqrMagnitude3(va.x, va.z, va.y); /* in=n bit frac, out=2n-20 bit frac; i.e. 10 bit frac */
-  else
-    mag = RSqrMagnitude2(va.x, va.z); /* in=n bit frac, out=2n-13 bit frac */
-#else
-  if (lid == LID_STORMYASCENT || lid == LID_SLIPPERYCLIMB)
-    mag = SwSqrMagnitude3(va.x, va.z, va.y);
-  else
-    mag = SwSqrMagnitude2(va.x, va.z);
-#endif
-  if (mag > (32<<10)-1) {
-    left = (vol << 15) / mag; /* 5bffp or 17bffp... */
-    right = left;
-    if (!mono) {
-      ang_xz = atan2(va.z, va.x);
-      amp = cos(ang_xz) + 0x1000; /* cos in (0-2) range */
-      /* 5bffp * 12bffp = 17bffp; 17bffp >> 11 = 7bffp / 2
-         i.e. left = left*(1 + (2.0-amp))/2 */
-      left = (left + left*(0x2000 - amp)) >> 11;
-      right = (left + left*amp) >> 11;
+    if (lid == LID_STORMYASCENT || lid == LID_SLIPPERYCLIMB) {
+        mag = RSqrMagnitude3(va.x, va.z, va.y); /* in=n bit frac, out=2n-20 bit frac; i.e. 10 bit frac */
+    } else {
+        mag = RSqrMagnitude2(va.x, va.z); /* in=n bit frac, out=2n-13 bit frac */
     }
-    left = limit(left, 0, vol);
-    right = limit(right, 0, vol);
-    spatial_vol.left = left;
-    spatial_vol.right = right;
-  }
-  else {
-    spatial_vol.left = vol;
-    spatial_vol.right = vol;
-  }
-  return spatial_vol;
+#else
+    if (lid == LID_STORMYASCENT || lid == LID_SLIPPERYCLIMB) {
+        mag = SwSqrMagnitude3(va.x, va.z, va.y);
+    } else {
+        mag = SwSqrMagnitude2(va.x, va.z);
+    }
+#endif
+    if (mag > (32 << 10) - 1) {
+        left = (vol << 15) / mag; /* 5bffp or 17bffp... */
+        right = left;
+        if (!mono) {
+            ang_xz = atan2(va.z, va.x);
+            amp = cos(ang_xz) + 0x1000; /* cos in (0-2) range */
+            /* 5bffp * 12bffp = 17bffp; 17bffp >> 11 = 7bffp / 2
+               i.e. left = left*(1 + (2.0-amp))/2 */
+            left = (left + left * (0x2000 - amp)) >> 11;
+            right = (left + left * amp) >> 11;
+        }
+        left = limit(left, 0, vol);
+        right = limit(right, 0, vol);
+        spatial_vol.left = left;
+        spatial_vol.right = right;
+    } else {
+        spatial_vol.left = vol;
+        spatial_vol.right = vol;
+    }
+    return spatial_vol;
 }
 
 //----- (80030260) --------------------------------------------------------
 void AudioVoiceFree(gool_object *obj) {
-  audio_voice *voice;
-  generic res;
-  int i, count;
+    audio_voice *voice;
+    generic res;
+    int i, count;
 
-  if (!obj) { return; }
-  count = max_midi_voices;
-  for (i=0;i<24;i++) {
-    voice = &voices[i];
-    if ((voice->params.flags & 8) && voice->params.obj == obj) {
-      ramp_rate = 9;
-      AudioControl(voice->params.flags, 0x40000000, &res, voice->params.obj);
-      voice->params.obj = 0;
-      voice->params.sustain_counter = 0;
+    if (!obj) {
+        return;
     }
-  }
+    count = max_midi_voices;
+    for (i = 0; i < 24; i++) {
+        voice = &voices[i];
+        if ((voice->params.flags & 8) && voice->params.obj == obj) {
+            ramp_rate = 9;
+            AudioControl(voice->params.flags, 0x40000000, &res, voice->params.obj);
+            voice->params.obj = 0;
+            voice->params.sustain_counter = 0;
+        }
+    }
 }
 
 /**
@@ -274,54 +279,60 @@ void AudioVoiceFree(gool_object *obj) {
  */
 //----- (80030328) --------------------------------------------------------
 int AudioVoiceAlloc() {
-  audio_voice *voice;
-  uint8_t min_ttl; /* minimum number of iterations until a voice is freed */
-  uint16_t min_vol;
-  uint16_t left, right;
-  int i, idx_min;
+    audio_voice *voice;
+    uint8_t min_ttl; /* minimum number of iterations until a voice is freed */
+    uint16_t min_vol;
+    uint16_t left, right;
+    int i, idx_min;
 
-  min_ttl = 255;
-  min_vol = 0x3FFF;
-  for (i=max_midi_voices;i<24;i++) { /* find a free voice (has flag bit 4 clear) and return its idx */
-    voice = &voices[i];
-    if (voice->params.sustain_counter < min_ttl)
-      min_ttl = voice->params.sustain_counter; /* also keep track of shortest remaining lifetime */
-    if (!(voice->params.flags & 8)) /* free voice? */
-      return i; /* return the index */
-  }
-  /* no such voice was found if this point is reached */
-  if (min_ttl > voice_params.sustain_counter) { return -1; } /* return error if min rem. lifetime too high */
-  for (i=max_midi_voices;i<24;i++) { /* if more than one voice has the shortest remaining lifetime, find the quietest one */
-    voice = &voices[i];
-    if (voice->params.sustain_counter == min_ttl) {
-#ifdef PSX
-      attr.voice = 1 << i;
-      SpuGetVoiceAttr(&attr);
-      left=abs(attr.volume.left);
-      right=abs(attr.volume.right);
-#else
-      Volume volume;
-      if (voice->params.obj && (voice->params.obj->process.status_b & 0x200)) { /* no spatialization? */
-        volume.left  = voice->params.amplitude;
-        volume.right = voice->params.amplitude;
-        voice->params.flags &= ~0x200;
-      }
-      else
-        volume = AudioSpatialize(&voice->params.r_trans, voice->params.amplitude);
-      left=abs(volume.left);
-      right=abs(volume.right);
-#endif
-      if (min(left, right) < min_vol) {
-        min_vol = min(left, right);
-        idx_min = i;
-      }
+    min_ttl = 255;
+    min_vol = 0x3FFF;
+    for (i = max_midi_voices; i < 24; i++) { /* find a free voice (has flag bit 4 clear) and return its idx */
+        voice = &voices[i];
+        if (voice->params.sustain_counter < min_ttl) {
+            min_ttl = voice->params.sustain_counter; /* also keep track of shortest remaining lifetime */
+        }
+        if (!(voice->params.flags & 8)) { /* free voice? */
+            return i;                     /* return the index */
+        }
     }
-  }
-  /* master voice has shortest rem. lifetime and that voice is loud? */
-  if (min_ttl == voice_params.sustain_counter && min_vol >= 0x800) {
-    if (randb(100) >= 50) { return -1; } /* possibly return error */
-  }
-  return idx_min; /* return idx of shortest rem. lifetime voice (or the quietest of them if multiple) */
+    /* no such voice was found if this point is reached */
+    if (min_ttl > voice_params.sustain_counter) {
+        return -1;
+    } /* return error if min rem. lifetime too high */
+    for (i = max_midi_voices; i < 24; i++) { /* if more than one voice has the shortest remaining lifetime, find the quietest one */
+        voice = &voices[i];
+        if (voice->params.sustain_counter == min_ttl) {
+#ifdef PSX
+            attr.voice = 1 << i;
+            SpuGetVoiceAttr(&attr);
+            left = abs(attr.volume.left);
+            right = abs(attr.volume.right);
+#else
+            Volume volume;
+            if (voice->params.obj && (voice->params.obj->process.status_b & 0x200)) { /* no spatialization? */
+                volume.left = voice->params.amplitude;
+                volume.right = voice->params.amplitude;
+                voice->params.flags &= ~0x200;
+            } else {
+                volume = AudioSpatialize(&voice->params.r_trans, voice->params.amplitude);
+            }
+            left = abs(volume.left);
+            right = abs(volume.right);
+#endif
+            if (min(left, right) < min_vol) {
+                min_vol = min(left, right);
+                idx_min = i;
+            }
+        }
+    }
+    /* master voice has shortest rem. lifetime and that voice is loud? */
+    if (min_ttl == voice_params.sustain_counter && min_vol >= 0x800) {
+        if (randb(100) >= 50) {
+            return -1;
+        } /* possibly return error */
+    }
+    return idx_min; /* return idx of shortest rem. lifetime voice (or the quietest of them if multiple) */
 }
 
 /**
@@ -348,89 +359,98 @@ int AudioVoiceAlloc() {
 //----- (800304C8) --------------------------------------------------------
 int AudioVoiceCreate(gool_object *obj, eid_t *eid, int vol) {
 #ifdef PSX
-  SpuVoiceAttr attr;
-  SndVolume volume;
-  uint32_t tag, addr;
+    SpuVoiceAttr attr;
+    SndVolume volume;
+    uint32_t tag, addr;
 #else
-  Volume volume;
-  entry *adio;
-  size_t size;
+    Volume volume;
+    entry *adio;
+    size_t size;
 #endif
-  audio_voice *voice;
-  int idx;
+    audio_voice *voice;
+    int idx;
 
-  if (!sfx_vol) { return 0; } /* return if sfx are muted */
-  idx = AudioVoiceAlloc(); /* try to allocate a voice */
-  if (idx <= 0) { return -1; } /* return error on failure to allocate */
-  voice = &voices[idx]; /* get the allocated voice */
+    if (!sfx_vol) {
+        return 0;
+    } /* return if sfx are muted */
+    idx = AudioVoiceAlloc(); /* try to allocate a voice */
+    if (idx <= 0) {
+        return -1;
+    } /* return error on failure to allocate */
+    voice = &voices[idx]; /* get the allocated voice */
 #ifdef PSX
-  if (eid & 1) /* eid pointer is actually an address? */
-    addr = (uint32_t)eid & 0xFFFFFFFE;
-  else {
-    tag = NSLookup(eid);
-    if (ISERRORCODE(tag)) { return -1; } /* return error on failed lookup */
-    addr = tag >> 2;
-  }
+    if (eid & 1) { /* eid pointer is actually an address? */
+        addr = (uint32_t)eid & 0xFFFFFFFE;
+    } else {
+        tag = NSLookup(eid);
+        if (ISERRORCODE(tag)) {
+            return -1;
+        } /* return error on failed lookup */
+        addr = tag >> 2;
+    }
 #else
-  adio = NSLookup(eid);
-  size = adio->items[1]-adio->items[0];
-  SwLoadSample(idx, adio->items[0], size);
+    adio = NSLookup(eid);
+    size = adio->items[1] - adio->items[0];
+    SwLoadSample(idx, adio->items[0], size);
 #endif
-  voice->params = voice_params;
-  voice->params.amplitude = (vol*init_vol) >> 14;
-  if (voice->params.flags & 0x40)
-    voice->params.ramp_step = (voice->params.tgt_amplitude-voice->params.amplitude)/voice->params.ramp_counter;
-  voice->params.obj = obj;
-  if (obj) {
-    voice->params.trans = obj->process.vectors.trans;
-    GoolTransform2(&obj->process.vectors.trans, &voice->params.r_trans, 1);
-  }
-  /* reset voice_params to the defaults in case they were changed by AudioControl */
-  voice_params.delay_counter = 1;
-  voice_params.sustain_counter = 128;
-  voice_params.amplitude = 0x3FFF;
-  voice_params.pitch = 0x1000;
-  voice_params.obj = 0;
-  voice_params.case7val = 0;
-  voice_params.r_trans.x = 0;
-  voice_params.r_trans.y = 0;
-  voice_params.r_trans.z = 0;
-  voice_params.flags = (voice_params.flags & 0xFFFFF000) | 0x600;
-  /* bugfix: orig impl did not test voice->params.obj before accessing it here */
-  if (voice->params.obj && voice->params.obj->process.status_b & 0x200) { /* no spatialization? */
-    volume.left  = voice->params.amplitude;
-    volume.right = voice->params.amplitude;
-    voice->params.flags &= ~0x200;
-  }
-  else
-    volume = AudioSpatialize(&voice->params.r_trans, voice->params.amplitude);
+    voice->params = voice_params;
+    voice->params.amplitude = (vol * init_vol) >> 14;
+    if (voice->params.flags & 0x40) {
+        voice->params.ramp_step = (voice->params.tgt_amplitude - voice->params.amplitude) / voice->params.ramp_counter;
+    }
+    voice->params.obj = obj;
+    if (obj) {
+        voice->params.trans = obj->process.vectors.trans;
+        GoolTransform2(&obj->process.vectors.trans, &voice->params.r_trans, 1);
+    }
+    /* reset voice_params to the defaults in case they were changed by AudioControl */
+    voice_params.delay_counter = 1;
+    voice_params.sustain_counter = 127;
+    voice_params.amplitude = 0x3FFF;
+    voice_params.pitch = 0x1000;
+    voice_params.obj = 0;
+    voice_params.case7val = 0;
+    voice_params.r_trans.x = 0;
+    voice_params.r_trans.y = 0;
+    voice_params.r_trans.z = 0;
+    voice_params.flags = (voice_params.flags & 0xFFFFF000) | 0x600;
+    /* bugfix: orig impl did not test voice->params.obj before accessing it here */
+    if (voice->params.obj && voice->params.obj->process.status_b & 0x200) { /* no spatialization? */
+        volume.left = voice->params.amplitude;
+        volume.right = voice->params.amplitude;
+        voice->params.flags &= ~0x200;
+    } else {
+        volume = AudioSpatialize(&voice->params.r_trans, voice->params.amplitude);
+    }
 #ifdef PSX
-  /* set default voice attribs and voice address */
-  attr.mask = 0xFF93;
-  attr.voice = 1 << idx;
-  attr.volume = volume;
-  attr.a_mode = 1;
-  attr.s_mode = 1;
-  attr.r_mode = 1;
-  attr.addr = addr;
-  attr.ar = 0;
-  attr.sr = 0;
-  attr.rr = 0;
-  attr.sl = 15;
-  attr.pitch = voice->params.pitch;
-  SpuSetVoiceAttr(&attr);
-  SpuSetReverbVoice((voice->params.flags>>10)&1, attr.voice);
-  if (!(voice->params.flags & 0x10)) /* non-delayed voice? */
-    SpuSetKey(SPU_ON, attr.voice); /* turn key on immediately */
+    /* set default voice attribs and voice address */
+    attr.mask = 0xFF93;
+    attr.voice = 1 << idx;
+    attr.volume = volume;
+    attr.a_mode = 1;
+    attr.s_mode = 1;
+    attr.r_mode = 1;
+    attr.addr = addr;
+    attr.ar = 0;
+    attr.sr = 0;
+    attr.rr = 0;
+    attr.sl = 15;
+    attr.pitch = voice->params.pitch;
+    SpuSetVoiceAttr(&attr);
+    SpuSetReverbVoice((voice->params.flags >> 10) & 1, attr.voice);
+    if (!(voice->params.flags & 0x10)) { /* non-delayed voice? */
+        SpuSetKey(SPU_ON, attr.voice);   /* turn key on immediately */
+    }
 #else
-  if (!(voice->params.flags & 0x10)) /* non-delayed voice? */
-    SwNoteOn(idx); /* turn key on immediately */
-  SwVoiceSetVolume(idx, volume.left, volume.right);
-  SwVoiceSetPitch(idx, voice->params.pitch);
+    if (!(voice->params.flags & 0x10)) { /* non-delayed voice? */
+        SwNoteOn(idx);                   /* turn key on immediately */
+    }
+    SwVoiceSetVolume(idx, volume.left, volume.right);
+    SwVoiceSetPitch(idx, voice->params.pitch);
 #endif
-  voice->id = ++voice_id_ctr; /* allocate next id for the voice */
-  voice->params.flags |= 8; /* set 'used' flag */
-  return voice_id_ctr; /* return the voice id */
+    voice->id = ++voice_id_ctr; /* allocate next id for the voice */
+    voice->params.flags |= 8;   /* set 'used' flag */
+    return voice_id_ctr;        /* return the voice id */
 }
 
 /**
@@ -478,125 +498,136 @@ int AudioVoiceCreate(gool_object *obj, eid_t *eid, int vol) {
 //----- (80030840) --------------------------------------------------------
 void AudioControl(int id, int op, generic *arg, gool_object *obj) {
 #ifdef PSX
-  SpuVoiceAttr attr; // [sp+28h] [-90h] BYREF
+    SpuVoiceAttr attr; // [sp+28h] [-90h] BYREF
 #endif
-  Volume volume;
-  audio_voice *voice; // $s3
-  audio_voice_params *params; // $s0
-  vec v; // [sp+90h] [-28h] BYREF
-  int i;
+    Volume volume;
+    audio_voice *voice;         // $s3
+    audio_voice_params *params; // $s0
+    vec v;                      // [sp+90h] [-28h] BYREF
+    int i;
 
-  for (i=max_midi_voices;i<24;i++) {
-    if (id && ((id == -1 && voices[i].params.obj != obj) /* id is -1 and voice i does not have the specified obj? */
-      || voices[i].id != id)) /* ...or id is nonzero and voice i does not have this id? */
-      continue; /* skip the voice */
-    voice = (audio_voice*)((uint8_t*)&voice_params-sizeof(uint32_t)); /* cur voice */
-    if (id)
-      voice = &voices[i];
-    if (op & 0x80000000) { voice->params.flags |= 1; } /* set flag for 'force off'                    if bit 32 is set */
-    if (op & 0x40000000) { voice->params.flags |= 2; } /* set flag for 'force off when flag clear'    if bit 31 is set */
-    if (op & 0x20000000) { voice->params.flags |= 4; } /* set flag for 'amplitude ramp/glide enabled' if bit 30 is set */
-#ifdef PSX
-    attr.mask = 0;
-#endif
-    switch (op & 0xFFFFFFF) {
-    case 0: /* set amplitude */
-      if (voice->params.flags & 4) { /* amplitude ramp enabled? */
-        voice->params.tgt_amplitude = arg->s32;
-        voice->params.ramp_counter = ramp_rate;
-        if (id) /* single voice control mode? */
-          voice->params.ramp_step = (voice->params.tgt_amplitude - voice->params.amplitude) / ramp_rate;
-        voice->params.flags |= 0x40; /* set 'ramping' status */
-      }
-      else {
-        voice->params.amplitude = arg->s32;
-        if (id) { /* single voice control mode? */
-          volume = AudioSpatialize(&voice->params.r_trans, voice->params.amplitude);
-#ifdef PSX
-          attr.mask |= 3;
-          attr.volume = volume; /* set in the voice attr as well */
-#else
-          SwVoiceSetVolume(i, volume.left, volume.right);
-#endif
+    for (i = max_midi_voices; i < 24; i++) {
+        if (id && ((id == -1 && voices[i].params.obj != obj) /* id is -1 and voice i does not have the specified obj? */
+                   || voices[i].id != id)) {                 /* ...or id is nonzero and voice i does not have this id? */
+            continue;                                        /* skip the voice */
         }
-      }
-      break;
-    case 1: /* set pitch */
-      if (voice->params.flags & 4) { /* glide/portamento enabled? */
-        voice->params.tgt_pitch = arg->s32;
-        voice->params.glide_counter = ramp_rate; /* calculate counter */
-        voice->params.glide_step = (voice->params.tgt_pitch - voice->params.pitch) / ramp_rate; /* calculate step */
-        voice->params.flags |= 0x80; /* set 'gliding' status */
-      }
-      else {
-        voice->params.pitch = arg->s32; /* set pitch directly */
-        if (id) { /* single voice control mode? */
-#ifdef PSX
-          attr.mask = 0x10;
-          attr.pitch = voice->params.pitch; /* set in the voice attr as well */
-#else
-          SwVoiceSetPitch(i, voice->params.pitch);
-#endif
+        voice = (audio_voice *)((uint8_t *)&voice_params - sizeof(uint32_t)); /* cur voice */
+        if (id) {
+            voice = &voices[i];
         }
-      }
-      break;
-    case 2: /* set voice location */
-      v = arg->v;
-      GoolTransform2(&v, &arg->v, 1);
-      /* fall through!!! */
-    case 3: /* set voice location (pre-rotated) */
-      if (voice->params.flags & 4) { break; } /* skip if amplitude ramp or portamento enabled */
-      voice->params.r_trans = arg->v;
-      if (id) {
-        voice->params.r_trans = arg->v;
-        volume = AudioSpatialize(&voice->params.r_trans, voice->params.amplitude);
+        if (op & 0x80000000) {
+            voice->params.flags |= 1;
+        } /* set flag for 'force off'                    if bit 32 is set */
+        if (op & 0x40000000) {
+            voice->params.flags |= 2;
+        } /* set flag for 'force off when flag clear'    if bit 31 is set */
+        if (op & 0x20000000) {
+            voice->params.flags |= 4;
+        } /* set flag for 'amplitude ramp/glide enabled' if bit 30 is set */
 #ifdef PSX
-        attr.mask = 3;
-        attr.volume = volume;
+        attr.mask = 0;
+#endif
+        switch (op & 0xFFFFFFF) {
+        case 0:                            /* set amplitude */
+            if (voice->params.flags & 4) { /* amplitude ramp enabled? */
+                voice->params.tgt_amplitude = arg->s32;
+                voice->params.ramp_counter = ramp_rate;
+                if (id) { /* single voice control mode? */
+                    voice->params.ramp_step = (voice->params.tgt_amplitude - voice->params.amplitude) / ramp_rate;
+                }
+                voice->params.flags |= 0x40; /* set 'ramping' status */
+            } else {
+                voice->params.amplitude = arg->s32;
+                if (id) { /* single voice control mode? */
+                    volume = AudioSpatialize(&voice->params.r_trans, voice->params.amplitude);
+#ifdef PSX
+                    attr.mask |= 3;
+                    attr.volume = volume; /* set in the voice attr as well */
 #else
-        SwVoiceSetVolume(i, volume.left, volume.right);
+                    SwVoiceSetVolume(i, volume.left, volume.right);
 #endif
-      }
-      break;
-    case 4: /* set delay amount */
-      voice->params.delay_counter = arg->s8;
-      break;
-    case 5: /* set voice object */
-      voice->params.obj = arg->o;
-      break;
-    case 6: /* set glide/ramp rate */
-      ramp_rate = arg->s32 ? arg->s32 : 1;
-      break;
-    case 7: /* delay voice */
-      voice->params.case7val = arg->u32;
-      voice->params.flags |= 0x10;
-      break;
-    case 8: /* set as an object voice */
-      voice->params.flags |= 0x200;
-      break;
-    case 9: /* unset as an object voice */
-      voice->params.flags &= ~0x200;
-      break;
-    case 10:
-      voice->params.flags = (voice->params.flags & 0xFFFFF7FF) | ((arg->u32<<3)&0x800);
-      break;
-    case 11: /* enable reverb */
-      voice->params.flags = (voice->params.flags & 0xFFFFFBFF) | ((arg->u32<<2)&0x400);
-      break;
-    case 12: /* set sustain amount */
-      voice->params.sustain_counter = arg->s8;
-      break;
-    default:
-      break;
-    }
+                }
+            }
+            break;
+        case 1:                            /* set pitch */
+            if (voice->params.flags & 4) { /* glide/portamento enabled? */
+                voice->params.tgt_pitch = arg->s32;
+                voice->params.glide_counter = ramp_rate;                                                /* calculate counter */
+                voice->params.glide_step = (voice->params.tgt_pitch - voice->params.pitch) / ramp_rate; /* calculate step */
+                voice->params.flags |= 0x80;                                                            /* set 'gliding' status */
+            } else {
+                voice->params.pitch = arg->s32; /* set pitch directly */
+                if (id) {                       /* single voice control mode? */
 #ifdef PSX
-    if (attr.mask) { /* changes to voice? */
-      attr.voice = 1 << cur_voice_idx;
-      SpuSetVoiceAttr(&attr); /* apply changes */
-    }
+                    attr.mask = 0x10;
+                    attr.pitch = voice->params.pitch; /* set in the voice attr as well */
+#else
+                    SwVoiceSetPitch(i, voice->params.pitch);
 #endif
-    if (id != -1) { return; } /* quit if not controlling [other] voices for a single object */
-  }
+                }
+            }
+            break;
+        case 2: /* set voice location */
+            v = arg->v;
+            GoolTransform2(&v, &arg->v, 1);
+            /* fall through!!! */
+        case 3: /* set voice location (pre-rotated) */
+            if (voice->params.flags & 4) {
+                break;
+            } /* skip if amplitude ramp or portamento enabled */
+            voice->params.r_trans = arg->v;
+            if (id) {
+                voice->params.r_trans = arg->v;
+                volume = AudioSpatialize(&voice->params.r_trans, voice->params.amplitude);
+#ifdef PSX
+                attr.mask = 3;
+                attr.volume = volume;
+#else
+                SwVoiceSetVolume(i, volume.left, volume.right);
+#endif
+            }
+            break;
+        case 4: /* set delay amount */
+            voice->params.delay_counter = arg->s8;
+            break;
+        case 5: /* set voice object */
+            voice->params.obj = arg->o;
+            break;
+        case 6: /* set glide/ramp rate */
+            ramp_rate = arg->s32 ? arg->s32 : 1;
+            break;
+        case 7: /* delay voice */
+            voice->params.case7val = arg->u32;
+            voice->params.flags |= 0x10;
+            break;
+        case 8: /* set as an object voice */
+            voice->params.flags |= 0x200;
+            break;
+        case 9: /* unset as an object voice */
+            voice->params.flags &= ~0x200;
+            break;
+        case 10:
+            voice->params.flags = (voice->params.flags & 0xFFFFF7FF) | ((arg->u32 << 3) & 0x800);
+            break;
+        case 11: /* enable reverb */
+            voice->params.flags = (voice->params.flags & 0xFFFFFBFF) | ((arg->u32 << 2) & 0x400);
+            break;
+        case 12: /* set sustain amount */
+            voice->params.sustain_counter = arg->s8;
+            break;
+        default:
+            break;
+        }
+#ifdef PSX
+        if (attr.mask) { /* changes to voice? */
+            attr.voice = 1 << cur_voice_idx;
+            SpuSetVoiceAttr(&attr); /* apply changes */
+        }
+#endif
+        if (id != -1) {
+            return;
+        } /* quit if not controlling [other] voices for a single object */
+    }
 }
 
 /**
@@ -617,150 +648,150 @@ void AudioControl(int id, int op, generic *arg, gool_object *obj) {
 //----- (80030CC0) --------------------------------------------------------
 void AudioUpdate() {
 #ifdef PSX
-  SpuVoiceAttr attr; // [sp+18h] [-50h] BYREF
+    SpuVoiceAttr attr; // [sp+18h] [-50h] BYREF
 #endif
-  Volume volume;
-  audio_voice *voice;
-  zone_header *header;
-  uint16_t vol;
-  int i, flag;
+    Volume volume;
+    audio_voice *voice;
+    zone_header *header;
+    uint16_t vol;
+    int i, flag;
 
-  flag = 0;
-  /* reset volumes if title */
-  if (ns.ldat->lid == LID_TITLE) {
-    init_vol = (0x3FFF * sfx_vol) >> 8;
-    vol = (0x3FFF00 * mus_vol) >> 16;
-    MidiResetSeqVol(vol);
-  }
-  /* update midi */
-  if (cur_zone) {
-    header = (zone_header*)cur_zone->items[0];
-    MidiUpdate(&header->gfx.midi); /* 0x304 */
-  }
-  if (fade_vol_step) { /* volume fading? */
-    if (fade_vol_step < 0 && fade_vol < abs(fade_vol_step)) { /* fading out and fade_vol < abs(fade_vol_step)? */
-      fade_vol = 0; /* lower limit at 0 */
-      fade_vol_step = 0; /* stop fading */
+    flag = 0;
+    /* reset volumes if title */
+    if (ns.ldat->lid == LID_TITLE) {
+        init_vol = (0x3FFF * sfx_vol) >> 8;
+        vol = (0x3FFF00 * mus_vol) >> 16;
+        MidiResetSeqVol(vol);
     }
-    if (fade_vol_step > 0 && 0x3FFF - fade_vol < fade_vol_step) { /* fading in and fade_vol > fade_vol - fade_vol_step ? */
-      fade_vol = 0x3FFF; /* upper limit fade_vol at 0x3FFF */
-      fade_vol_step = 0; /* stop fading */
+    /* update midi */
+    if (cur_zone) {
+        header = (zone_header *)cur_zone->items[0];
+        MidiUpdate(&header->gfx.midi); /* 0x304 */
     }
-    fade_vol += fade_vol_step; /* increase/decrease volume */
-#ifdef PSX
-    SsSetMVol(fade_vol, fade_vol); /* set master volume */
-#else
-    SwSetMVol(fade_vol);
-#endif
-  }
-#ifdef PSX
-#define KEYS_STATUS_ON SPU_ON_ENV_OFF
-  SpuGetAllKeysStatus(keys_status);
-#else
-#define KEYS_STATUS_ON 1
-  SwGetAllKeysStatus(keys_status);
-#endif
-  flag=0;
-  for (i=max_midi_voices;i<24;i++) {
-    voice = &voices[i];
-    if (!(voice->params.flags & 8)) { continue; } /* skip inactive/free voices */
-    if (voice->params.flags & 0x10) { /* delayed voice? */
-      if (--voice->params.delay_counter == 0) { /* decrement delay; has countdown finished? */
-        voice->params.flags &= ~0x10; /* clear key triggered status */
-#ifdef PSX
-        SpuSetKey(SPU_ON, 1<<i); /* set key on */
-#else
-        SwNoteOn(i);
-#endif
-      }
-    }
-    if (keys_status[i] == KEYS_STATUS_ON) {
-      if (--voice->params.sustain_counter != 0) {/* decrement sustain; still sustaining? */
-#ifdef PSX
-        SpuSetKey(SPU_ON, 1<<i); /* keep key on */
-#endif
-      }
-      else {
-#ifdef PSX
-        SpuSetKey(SPU_OFF, 1<<i); /* else turn key off */
-#else
-        SwNoteOff(i);
-#endif
-        voice->params.flags &= ~8; /* and free up the voice */
-        /*
-        if (voice->params.flags & 1 || (!flag && voice->params.flags & 2)) {
-          SpuSetKey(SPU_OFF, 1<<i);
-          voice->params.flags &= ~8;
+    if (fade_vol_step) {                                          /* volume fading? */
+        if (fade_vol_step < 0 && fade_vol < abs(fade_vol_step)) { /* fading out and fade_vol < abs(fade_vol_step)? */
+            fade_vol = 0;                                         /* lower limit at 0 */
+            fade_vol_step = 0;                                    /* stop fading */
         }
-        */
-        continue;
-      }
+        if (fade_vol_step > 0 && 0x3FFF - fade_vol < fade_vol_step) { /* fading in and fade_vol > fade_vol - fade_vol_step ? */
+            fade_vol = 0x3FFF;                                        /* upper limit fade_vol at 0x3FFF */
+            fade_vol_step = 0;                                        /* stop fading */
+        }
+        fade_vol += fade_vol_step; /* increase/decrease volume */
+#ifdef PSX
+        SsSetMVol(fade_vol, fade_vol); /* set master volume */
+#else
+        SwSetMVol(fade_vol);
+#endif
     }
+
+#define KEYS_STATUS_ON 1
+    SwGetAllKeysStatus(keys_status);
+
+    flag = 0;
+    for (i = max_midi_voices; i < 24; i++) {
+        voice = &voices[i];
+        if (!(voice->params.flags & 8)) {
+            continue;
+        } /* skip inactive/free voices */
+        if (voice->params.flags & 0x10) {             /* delayed voice? */
+            if (--voice->params.delay_counter == 0) { /* decrement delay; has countdown finished? */
+                voice->params.flags &= ~0x10;         /* clear key triggered status */
+#ifdef PSX
+                SpuSetKey(SPU_ON, 1 << i); /* set key on */
+#else
+                SwNoteOn(i);
+#endif
+            }
+        }
+        if (keys_status[i] == KEYS_STATUS_ON) {
+            if (--voice->params.sustain_counter != 0) { /* decrement sustain; still sustaining? */
+#ifdef PSX
+                SpuSetKey(SPU_ON, 1 << i); /* keep key on */
+#endif
+            } else {
+#ifdef PSX
+                SpuSetKey(SPU_OFF, 1 << i); /* else turn key off */
+#else
+                SwNoteOff(i);
+#endif
+                voice->params.flags &= ~8; /* and free up the voice */
+                /*
+                if (voice->params.flags & 1 || (!flag && voice->params.flags & 2)) {
+                  SpuSetKey(SPU_OFF, 1<<i);
+                  voice->params.flags &= ~8;
+                }
+                */
+                continue;
+            }
+        }
 #ifndef PSX
-    else {
-      voice->params.flags &= ~8;
-    }
+        else {
+            voice->params.flags &= ~8;
+        }
 #endif
 #ifdef PSX
-    attr.mask = 0;
+        attr.mask = 0;
 #endif
-    if (voice->params.flags & 0x40) { /* currently ramping (amplitude)? */
-      voice->params.amplitude += voice->params.ramp_step; /* increase amplitude */
-      if (--voice->params.ramp_counter > 0) /* not done ramping? */
-        flag = 1; /* set flag */
-      else
-        voice->params.flags &= ~0x40; /* else clear currently ramping flag */
-      /* bugfix: orig impl did not test voice->params.obj before accessing it here */
-      if (voice->params.obj && (voice->params.obj->process.status_b & 0x200)) { /* no spatialization? */
-        volume.left = voice->params.amplitude;  /* set volume directly to the amplitude */
-        volume.right = voice->params.amplitude;
-      }
-      else
-        volume = AudioSpatialize(&voice->params.r_trans, voice->params.amplitude); /* else spatialize */
+        if (voice->params.flags & 0x40) {                       /* currently ramping (amplitude)? */
+            voice->params.amplitude += voice->params.ramp_step; /* increase amplitude */
+            if (--voice->params.ramp_counter > 0) {             /* not done ramping? */
+                flag = 1;                                       /* set flag */
+            } else {
+                voice->params.flags &= ~0x40; /* else clear currently ramping flag */
+            }
+            /* bugfix: orig impl did not test voice->params.obj before accessing it here */
+            if (voice->params.obj && (voice->params.obj->process.status_b & 0x200)) { /* no spatialization? */
+                volume.left = voice->params.amplitude;                                /* set volume directly to the amplitude */
+                volume.right = voice->params.amplitude;
+            } else {
+                volume = AudioSpatialize(&voice->params.r_trans, voice->params.amplitude); /* else spatialize */
+            }
 #ifdef PSX
-      attr.mask |= 3; /* set mask for applying changes to volume */
-      attr.volume = volume;
+            attr.mask |= 3; /* set mask for applying changes to volume */
+            attr.volume = volume;
 #else
-      SwVoiceSetVolume(i, volume.left, volume.right);
+            SwVoiceSetVolume(i, volume.left, volume.right);
 #endif
-    }
-    if (voice->params.flags & 0x80) { /* currently gliding? */
-      voice->params.pitch += voice->params.glide_step; /* increase pitch */
-      if (--voice->params.glide_counter > 0) /* not done gliding? */
-        flag = 1; /* set flag */
-      else
-        voice->params.flags &= ~0x80; /* else clear currenly gliding flag */
+        }
+        if (voice->params.flags & 0x80) {                    /* currently gliding? */
+            voice->params.pitch += voice->params.glide_step; /* increase pitch */
+            if (--voice->params.glide_counter > 0) {         /* not done gliding? */
+                flag = 1;                                    /* set flag */
+            } else {
+                voice->params.flags &= ~0x80; /* else clear currenly gliding flag */
+            }
 #ifdef PSX
-      attr.mask |= 0x10; /* set mask for applying changes to pitch */
-      attr.pitch = voice->params.pitch; /* set new pitch */
+            attr.mask |= 0x10;                /* set mask for applying changes to pitch */
+            attr.pitch = voice->params.pitch; /* set new pitch */
 #else
-      SwVoiceSetPitch(i, voice->params.pitch);
+            SwVoiceSetPitch(i, voice->params.pitch);
 #endif
-    }
-    if ((voice->params.flags & 0x200) && voice->params.obj) { /* voice emitted from object? */
-      voice->params.trans = voice->params.obj->process.vectors.trans; /* set to object trans */
-      GoolTransform2(&voice->params.trans, &voice->params.r_trans, 1); /* trans, rotate, and scale */
-      volume = AudioSpatialize(&voice->params.r_trans, voice->params.amplitude); /* spatialize w.r.t. object */
+        }
+        if ((voice->params.flags & 0x200) && voice->params.obj) {                      /* voice emitted from object? */
+            voice->params.trans = voice->params.obj->process.vectors.trans;            /* set to object trans */
+            GoolTransform2(&voice->params.trans, &voice->params.r_trans, 1);           /* trans, rotate, and scale */
+            volume = AudioSpatialize(&voice->params.r_trans, voice->params.amplitude); /* spatialize w.r.t. object */
 #ifdef PSX
-      attr.mask |= 3; /* set mask for applying changes to volume */
-      attr.volume = volume;
+            attr.mask |= 3; /* set mask for applying changes to volume */
+            attr.volume = volume;
 #else
-      SwVoiceSetVolume(i, volume.left, volume.right);
+            SwVoiceSetVolume(i, volume.left, volume.right);
 #endif
-    }
+        }
 #ifdef PSX
-    if (attr.mask) { /* changes to voice? */
-      attr.voice = 1 << i;
-      SpuSetVoiceAttr(&attr); /* apply changes */
-    }
+        if (attr.mask) { /* changes to voice? */
+            attr.voice = 1 << i;
+            SpuSetVoiceAttr(&attr); /* apply changes */
+        }
 #endif
-    if ((voice->params.flags & 1) || (!flag && (voice->params.flags & 2))) { /* forced off? */
+        if ((voice->params.flags & 1) || (!flag && (voice->params.flags & 2))) { /* forced off? */
 #ifdef PSX
-      SpuSetKey(SPU_OFF, 1<<i); /* turn key off */
+            SpuSetKey(SPU_OFF, 1 << i); /* turn key off */
 #else
-      SwNoteOff(i);
+            SwNoteOff(i);
 #endif
-      voice->params.flags &= ~8; /* free up voice */
+            voice->params.flags &= ~8; /* free up voice */
+        }
     }
-  }
 }
