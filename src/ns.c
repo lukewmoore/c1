@@ -251,15 +251,25 @@ void DebugLogNsd(const nsd *n) {
         }
     }
 
-    printf("\n5. Header Values:\n");
-    printf("\tpage_count: %d\n", header[0]);
-    printf("\tpage_table_size: %u (0x%x)\n", header[4], header[4]);
-    printf("\tldat_eid: %u (0x%x)\n", header[8], header[8]);
-    printf("\thas_loading_image: %d\n", header[12]);
-    printf("\tloading_image_width: %u\n", header[16]);
-    printf("\tloading_image_height: %u\n", header[20]);
-    printf("\tpages_offset: %u\n", header[24]);
-    printf("\tcompressed_page_count: %d\n", header[28]);
+    printf("\nExpected values:\n");
+    printf("\tpage_count: 80\n");
+    printf("\tpage_table_size: 238\n");
+    printf("\tldat_eid: 1327949023\n");
+    printf("\thas_loading_image: 256\n");
+    printf("\tloading_image_width: 432\n");
+    printf("\tloading_image_height: 144\n");
+    printf("\tpages_offset: 780\n");
+    printf("\tcompressed_page_count: 31\n");
+
+    printf("\nActual values:\n");
+    printf("\tpage_count: %d\n", n->page_count);
+    printf("\tpage_table_size: %d\n", n->page_table_size);
+    printf("\tldat_eid: %u\n", n->ldat_eid);
+    printf("\thas_loading_image: %d\n", n->has_loading_image);
+    printf("\tloading_image_width: %u\n", n->loading_image_width);
+    printf("\tloading_image_height: %u\n", n->loading_image_height);
+    printf("\tpages_offset: %u\n", n->pages_offset);
+    printf("\tcompressed_page_count: %d\n", n->compressed_page_count);
 
     printf("\n6. Page Table Entries (first few):\n");
     if (n->page_table && n->page_table_size > 0) {
@@ -400,49 +410,36 @@ struct nsd *ReadNsd64(const char *filename) {
         return NULL;
     }
 
-    nsd *n = (nsd *)malloc(file_size); // Allocate enough for entire file
+    nsd *n = (nsd *)malloc(file_size);
     if (!n) {
         free(raw_data);
         return NULL;
     }
 
-    // Copy PTB array first
+    // Copy PTB offsets table (this part was correct)
     memcpy(n->ptb_offsets, raw_data, NSD_PTB_COUNT * sizeof(uint32_t));
 
-    // Get header with proper alignment
-    const uint8_t *header_bytes = raw_data + 0x800;
-
-    // Read full 32-bit values
-    n->page_count = header_bytes[0];
-    n->page_table_size = header_bytes[4]; // Read full 32-bit value
-    n->ldat_eid = header_bytes[8];
-    n->has_loading_image = header_bytes[12];
-    n->loading_image_width = header_bytes[16];
-    n->loading_image_height = header_bytes[20];
-    n->pages_offset = header_bytes[24];
-    n->compressed_page_count = header_bytes[28];
-
-    printf("\nNSD Header Information:\n");
-    printf("=======================\n\n");
-    printf("1. Page Count: %d\n", n->page_count);
-    printf("2. Page Table Size: %u (0x%x)\n", n->page_table_size, n->page_table_size);
-    printf("3. LDAT EID: %u (0x%x)\n", n->ldat_eid, n->ldat_eid);
-    printf("4. Has Loading Image: %d\n", n->has_loading_image);
-    printf("5. Loading Image Width: %u\n", n->loading_image_width);
-    printf("6. Loading Image Height: %u\n", n->loading_image_height);
-    printf("7. Pages Offset: %u\n", n->pages_offset);
-    printf("8. Compressed Page Count: %d\n", n->compressed_page_count);
+    // Read header values at 0x400 (after PTB array)
+    const uint32_t *header = (const uint32_t *)(raw_data + 0x400);
+    n->page_count = header[0];
+    n->page_table_size = header[1];
+    n->ldat_eid = header[2];
+    n->has_loading_image = header[3];
+    n->loading_image_width = header[4];
+    n->loading_image_height = header[5];
+    n->pages_offset = header[6];
+    n->compressed_page_count = header[7];
 
     // Copy compressed page offsets
     const uint32_t *comp_offsets = (uint32_t *)(raw_data + 0x824);
     memcpy(n->compressed_page_offsets, comp_offsets,
            NSD_COMPRESSED_PAGE_COUNT * sizeof(uint32_t));
 
-    // Copy page table data after compressed offsets
+    // Copy page table
     const uint8_t *page_table_start = raw_data + 0x824 +
                                       (NSD_COMPRESSED_PAGE_COUNT * sizeof(uint32_t));
-    memcpy(n->page_table, page_table_start,
-           file_size - (page_table_start - raw_data));
+    size_t remaining_size = file_size - (page_table_start - raw_data);
+    memcpy(n->page_table, page_table_start, remaining_size);
 
     free(raw_data);
     return n;
@@ -1138,20 +1135,30 @@ void NSInit(ns_struct *nss, uint32_t lid) {
     nss->nsd = nsd;
     nss->ldat_eid = &nsd->ldat_eid;
 
-    // nss->pte_buckets = nsd->page_table_buckets;
-    nss->pte_buckets = malloc(NSD_PTB_COUNT * sizeof(nsd_pte *));
-    for (i = 0; i < NSD_PTB_COUNT; i++) {
-        if (nsd->ptb_offsets[i] < nsd->page_table_size) {
-            nss->pte_buckets[i] = &nsd->page_table[nsd->ptb_offsets[i]];
-        } else {
-            nss->pte_buckets[i] = NULL;
-        }
-    }
+    nss->pte_buckets = nsd->page_table_buckets;
+    // nss->pte_buckets = malloc(NSD_PTB_COUNT * sizeof(nsd_pte *));
+    // for (i = 0; i < NSD_PTB_COUNT; i++) {
+    //     if (nsd->ptb_offsets[i] < nsd->page_table_size) {
+    //         nss->pte_buckets[i] = &nsd->page_table[nsd->ptb_offsets[i]];
+    //     } else {
+    //         nss->pte_buckets[i] = NULL;
+    //     }
+    // }
 
     nss->page_table = nsd->page_table;
 
     // TODO: ldat doesn't seem to be after page table...
     nss->ldat = (nsd_ldat *)&nsd->page_table[nsd->page_table_size];
+
+    nsd_pte **buckets;
+    uint32_t *offsets;
+
+    /* convert pte bucket relative offsets to absolute pointers */
+    buckets = nss->pte_buckets;
+    offsets = nss->nsd->ptb_offsets;
+    for (i = 0; i < 256; i++) {
+        buckets[i] = &nss->page_table[offsets[i]];
+    }
 
     TitleLoading(lid, nss->ldat->image_data, nsd);
 
