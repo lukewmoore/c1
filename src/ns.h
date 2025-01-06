@@ -1,5 +1,4 @@
 #pragma once
-#pragma pack(push, 4)
 
 #include "common.h"
 
@@ -18,10 +17,10 @@ typedef struct entry {
     eid_t eid;
     int32_t type;
     int32_t item_count;
-    union {
-        uint32_t item_offsets[0];
-        uint8_t *items[0];
-    };
+    // union {
+    uint32_t item_offsets[0];
+    // uint8_t *items[0];
+    // };
 } entry;
 
 /* pgid */
@@ -47,10 +46,10 @@ typedef union {
         pgid_t pgid;
         uint32_t entry_count;
         uint32_t checksum;
-        union {
-            uint32_t entry_offsets[0];
-            struct entry *entries[0];
-        };
+        // union {
+        uint32_t entry_offsets[0];
+        // struct entry *entries[0]; not available with 64-bit pointers
+        // };
     };
     uint8_t data[PAGE_SIZE];
 } page;
@@ -81,11 +80,11 @@ typedef uint32_t lid_t;
 #define MAGIC_LDAT 1
 #define NSD_EXEC_COUNT 64
 
-typedef struct {
+typedef struct nsd_ldat {
     uint32_t magic;
     lid_t lid;
     eid_t zone_spawn;
-    int32_t path_idx_spawn;
+    int path_idx_spawn;
     uint32_t unk_10;
     eid_t exec_map[NSD_EXEC_COUNT];
     uint32_t fov;
@@ -99,7 +98,8 @@ typedef struct {
 typedef struct {
     union {
         pgid_t pgid;
-        struct entry *entry;
+        // struct entry *entry;
+        uint32_t entry_offset; // not required but useful for debugging
         uint32_t value;
     };
     union {
@@ -111,24 +111,24 @@ typedef struct {
 typedef struct nsd {
     union {
         uint32_t ptb_offsets[NSD_PTB_COUNT];
-        nsd_pte* page_table_buckets[NSD_PTB_COUNT];
+        nsd_pte *page_table_buckets[NSD_PTB_COUNT];
     };
-    int page_count;                    // 4 bytes
-    uint32_t page_table_size;         // 4 bytes (changed from size_t)
-    eid_t ldat_eid;                   // 4 bytes
-    int has_loading_image;            // 4 bytes
-    uint32_t loading_image_width;     // 4 bytes
-    uint32_t loading_image_height;    // 4 bytes
+    int page_count;
+    uint32_t page_table_size;
+    eid_t ldat_eid;
+    int has_loading_image;
+    uint32_t loading_image_width;
+    uint32_t loading_image_height;
     union {
         uint32_t pages_offset;
         page *pages;
     };
-    int32_t compressed_page_count;    // 4 bytes
+    int32_t compressed_page_count;
     union {
         uint32_t compressed_page_offsets[NSD_COMPRESSED_PAGE_COUNT];
         uint8_t *compressed_pages[NSD_COMPRESSED_PAGE_COUNT];
     };
-    nsd_pte page_table[];            // flexible array member
+    nsd_pte page_table[];
 } nsd;
 
 typedef struct page_struct {
@@ -185,14 +185,14 @@ typedef struct {
 typedef struct {
     int32_t entry_count;
     int32_t page_count;
-    union {
-        eid_t eids[8];
-        struct entry *entries[8];
-    };
-    union {
-        pgid_t pgids[32];
-        page *pages[32];
-    };
+    // union {
+    eid_t eids[8];
+    // struct entry *entries[8];
+    // };
+    // union {
+    pgid_t pgids[32];
+    // page *pages[32];
+    // };
 } ns_loadlist;
 
 /* reference types */
@@ -209,7 +209,8 @@ typedef union {
 typedef union {
     eid_t eid;
     // ref->is_entry == (!ref->is_eid && !ref->is_value && ref->en->magic == MAGIC_ENTRY)
-    struct entry *en;
+    // struct entry *en;
+    uint32_t en_offset;
     struct {
         uint32_t is_eid : 1;
         uint32_t is_value : 1;
@@ -218,7 +219,8 @@ typedef union {
         uint32_t : 7; // padding (total 32 bits)
     };
     uint32_t value;
-    nsd_pte *pte;
+    // nsd_pte *pte;
+    uint32_t pte_offset;
 } entry_ref;
 
 typedef union {
@@ -268,4 +270,8 @@ extern int NSKill(ns_struct *nss);
 extern void NSKillPage(ns_struct *nss, int idx);
 extern uint8_t *NSFileReadRange(const char *filename, int start, int end, size_t *size);
 
-#pragma pack(pop)
+// Custom 64 bit compatibility functions
+extern struct entry *GetPageEntry(page *page, int i);
+extern uint8_t *GetEntryItem(struct entry *entry, int i);
+extern struct entry *GetEntryRefEntry(entry_ref *ref);
+extern struct nsd_pte *GetEntryRefPte(entry_ref *ref);

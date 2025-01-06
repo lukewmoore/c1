@@ -196,7 +196,7 @@ void CoreLoop(lid_t lid) {
         }
         LevelSpawnObjects();
         if (!paused) {
-            header = (zone_header *)cur_zone->items[0];
+            header = (zone_header *)GetEntryItem(cur_zone, 0);
             if (header->gfx.flags & (ZONE_FLAG_DARK2 | ZONE_FLAG_LIGHTNING)) {
                 ShaderParamsUpdate(0);
             }
@@ -209,7 +209,7 @@ void CoreLoop(lid_t lid) {
         }
         GfxUpdateMatrices();
         ot = context.ot;
-        header = (zone_header *)cur_zone->items[0];
+        header = (zone_header *)GetEntryItem(cur_zone, 0);
         if ((cur_display_flags & GOOL_FLAG_DISPLAY_WORLDS) && header->world_count && !wgeom_disabled) {
             if (header->gfx.flags & ZONE_FLAG_DARK2) {
                 GfxTransformWorldsDark2(ot);

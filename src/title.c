@@ -144,8 +144,8 @@ static void TitleLoadScreen(eid_t *eid, int type) {
     title->at_title = 1;
   }
   zone = NSOpen(eid, 1, 1);
-  header = (zone_header*)zone->items[0];
-  path = (zone_path*)zone->items[header->paths_idx]; /* first and only path */
+  header = (zone_header*)GetEntryItem(zone, 0);
+  path = (zone_path*)GetEntryItem(zone, header->paths_idx); /* first and only path */
   LevelUpdate(zone, path, 0, 2);
   NSClose(eid, 1);
 }
@@ -238,7 +238,7 @@ int TitleLoadState() {
   if (next_display_flags & GOOL_FLAG_DISPLAY_IMAGES && title->at_title) { /* title state has entities (to spawn)? */
     mdat = NSLookup(&title->mdat);
     TitleLoadEntries(title->state, 1, 1); /* load mdat ipal cluts and preload other entries in mdat  */
-    header = (mdat_header*)mdat->items[0];
+    header = (mdat_header*)GetEntryItem(mdat, 0);
     title->w = header->w_idx << 4;
     title->h = header->h_idx << 4;
     title->w_idx = header->w_idx;
@@ -246,7 +246,7 @@ int TitleLoadState() {
     title->x_offs = 0;
     title->y_offs = 0;
     for (i=0;i<header->entity_count;i++) { /* spawn entities */
-      entity = (mdat_entity*)mdat->items[2+i];
+      entity = (mdat_entity*)GetEntryItem(mdat, 2+i);
       if (entity->loc.z <= levels_unlocked) /* is loc.z really a z loc if this 2d? */
         GoolObjectSpawn(mdat, i);
     }
@@ -582,9 +582,9 @@ void TitleLoadImages(timginfo *info, int x_offs, int y_offs) {
       tileinfo->x = x_offs+(ii*16);
       tileinfo->y = y_offs+(i*16);
       mdat = NSLookup(&title->mdat);
-      header = (mdat_header*)mdat->items[0];
+      header = (mdat_header*)GetEntryItem(mdat, 0);
       imag = NSLookup(&header->imags[x_idx]);
-      tile = (imag_tile*)imag->items[y_idx];
+      tile = (imag_tile*)GetEntryItem(imag, y_idx);
       tileinfo->clut_idx = tile->clut_id;
 #ifdef PSX
       rect.x = (uvinfo->u_idx*8)+256; /* color mode 1; actual memory size of pixel region is half that of 16 bit pixel region */
@@ -654,7 +654,7 @@ void TitleLoadEntries(int state, int flag, int count) {
       NSClose(&eid, -count);
   }
   mdat = NSLookup(&title->mdat);
-  header = (mdat_header*)mdat->items[0];
+  header = (mdat_header*)GetEntryItem(mdat, 0);
   if (count > 0) {
     clut_idx = 0;
     line_idx = 0;
@@ -666,7 +666,7 @@ void TitleLoadEntries(int state, int flag, int count) {
       for (;i<end;i++) {
         ipal_idx = i / 120;
         ipal = NSLookup(&header->ipals[ipal_idx]);
-        clut = ipal->items[i % 120];
+        clut = GetEntryItem(ipal, i % 120);
         line = &header->clut_lines[line_idx];
         if (clut_idx >= line->clut_count) {
           clut_idx = 0;

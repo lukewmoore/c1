@@ -155,9 +155,9 @@ static inline int MidiGetVab(entry *midi) {
     midi_header *header;
     uint8_t *vh;
 
-    header = (midi_header *)midi->items[0];
+    header = (midi_header *)GetEntryItem(midi, 0);
     NSOpen(&header->midi, 1, 1);    /* preload the midi entry itself? from midi header */
-    vh = (uint8_t *)midi->items[1]; /* vab data */
+    vh = (uint8_t *)GetEntryItem(midi, 1); /* vab data */
     /* open new vab header (item2) for vab body at arg3, and allocate a new vab id */
     vab_id = SsVabFakeHead(vh, -1, (dword_8005CFB0 << 16) | 0x2000);
     if (vab_id == -1) { /* failed to open header or allocate? */
@@ -182,21 +182,21 @@ static inline int MidiGetVab(entry *midi) {
     size_t vh_size, size;
     int i, ii;
 
-    vh_size = midi->items[2] - midi->items[1];
+    vh_size = GetEntryItem(midi, 2) - GetEntryItem(midi, 1);
     size = vh_size;
     for (i = 0; i < 7; i++) {
-        header = (midi_header *)midi->items[0];
+        header = (midi_header *)GetEntryItem(midi, 0);
         inst_eid = header->insts[i];
         if (inst_eid == EID_NONE) {
             continue;
         }
         inst = NSOpen(&inst_eid, 1, 1);
-        i_header = (inst_header *)inst->items[0];
+        i_header = (inst_header *)GetEntryItem(inst, 0);
         size += i_header->len;
     }
     vab = (uint8_t *)malloc(size);
     vd = vab;
-    vh = (uint8_t *)midi->items[1];
+    vh = (uint8_t *)GetEntryItem(midi, 1);
     for (i = 0; i < vh_size; i++) {
         *(vd++) = *(vh++);
     }
@@ -206,8 +206,8 @@ static inline int MidiGetVab(entry *midi) {
             continue;
         }
         inst = NSOpen(&inst_eid, 1, 1);
-        i_header = (inst_header *)inst->items[0];
-        vb = (uint8_t *)inst->items[1];
+        i_header = (inst_header *)GetEntryItem(inst, 0);
+        vb = (uint8_t *)GetEntryItem(inst, 1);
         for (ii = 0; ii < i_header->len; ii++) {
             *(vd++) = *(vb++);
         }
@@ -256,7 +256,7 @@ int MidiOpenAndPlay(eid_t *eid) {
             return 0;                /* return */
         }
         midi = NSOpen(eid, 1, 1); /* open the new midi entry */
-        header = (midi_header *)midi->items[0];
+        header = (midi_header *)GetEntryItem(midi, 0);
         cur_midi_eid = midi->eid; /* set the current midi eid */
         for (i = 0; i < 7; i++) { /* pre-load inst entries */
             inst_eid = header->insts[i];
@@ -269,7 +269,7 @@ int MidiOpenAndPlay(eid_t *eid) {
     midi = NSOpen(eid, 1, 0); /* open the new midi entry */
     next_midi = 0;            /* clear transition midi eid? */
     for (i = 0; i < 7; i++) {
-        header = (midi_header *)midi->items[0];
+        header = (midi_header *)GetEntryItem(midi, 0);
         inst_eid = header->insts[i];
         if (inst_eid != EID_NONE && !NSClose(&header->insts[i], 0)) { /* failed to close inst entry? */
             return 0;                                                 /* return */
@@ -280,7 +280,7 @@ int MidiOpenAndPlay(eid_t *eid) {
     if (vab_id == -1) {              /* no vab has been loaded? */
         vab_id = MidiGetVab(midi);
     }
-    sep = midi->items[2];                             /* sep data */
+    sep = GetEntryItem(midi, 2);                      /* sep data */
     sep_access_num = SepOpen(sep, vab_id, seq_count); /* open sep data */
     if (sep_access_num == -1) {                       /* failed to open sep data? */
         exit(-1);                                     /* abort */
@@ -320,14 +320,15 @@ void MidiUpdate(void *en_ref) {
         midi_state = 1;                                                              /* stop playback (will hit MidiOpenAndPlay below) */
     }
     if (midi_state == 3) {                                             /* resumed/already playing? */
-        if ((ref->is_eid ? ref->eid : ref->en->eid) == cur_midi_eid) { /* no change in midi entry? */
+        if ((ref->is_eid ? ref->eid : GetEntryRefEntry(ref)->eid) == cur_midi_eid) { /* no change in midi entry? */
             return;
         }
         /* playback not paused, vab is already open, and haven't already scheduled a fade? */
         if (!seq2_vol && vab_id != -1 && !next_midi) {
             SepSetDecrescendo(sep_access_num, midi_seqs[0].num, seq_vol >> 7, 31); /* fade out in 31 ticks */
             midi_fade_counter = 30;                                                /* [re]set fade counter */
-            next_midi = ref->en;                                                   /* set target midi entry */
+            // next_midi = ref->en;                                                   /* set target midi entry */
+            next_midi = GetEntryRefEntry(ref); /* set target midi entry */
             midi_state = 4;                                                        /* set state to fading */
         }
     } else if (midi_state > 0 && midi_state < 3) { /* stopped or paused? */

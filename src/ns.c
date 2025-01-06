@@ -2,6 +2,7 @@
 #include "formats/zdat.h"
 #include "geom.h"
 #include "title.h"
+#include <assert.h>
 
 // .rdata
 #define NS_PATH "./"
@@ -36,6 +37,32 @@ extern ns_subsystem subsys[21];
 extern int use_cd;
 extern struct entry *cur_zone;
 extern eid_t insts[8];
+
+struct entry *GetPageEntry(page *page, int i) {
+    assert(i >= 0 && i < page->entry_count);
+    return (struct entry *)((uint8_t *)page + page->entry_offsets[i]);
+}
+
+uint8_t *GetEntryItem(struct entry *entry, int i) {
+    assert(i >= 0 && i < entry->item_count);
+    return (uint8_t *)entry + entry->item_offsets[i];
+}
+
+struct entry *GetEntryRefEntry(entry_ref *ref) {
+    return (struct entry *)((uint8_t *)ref + ref->en_offset);
+}
+
+struct nsd_pte *GetEntryRefPte(entry_ref *ref) {
+    return (struct nsd_pte *)((uint8_t *)ref + ref->pte_offset);
+}
+
+static inline entry *GetPteEntry(nsd_pte *pte) {
+    return (entry *)((uint8_t *)pte + pte->value);
+}
+
+static inline void SetPteEntry(nsd_pte *pte, entry *entry) {
+    pte->value = (uint32_t)((uint8_t *)entry - (uint8_t *)pte);
+}
 
 // (80012580)
 char *NSEIDToString(eid_t eid) {
@@ -219,7 +246,13 @@ int NSEntryItemSize(struct entry *entry, int idx) {
     if (!entry->item_count) {
         return 0;
     }
-    return entry->items[idx + 1] - entry->items[idx];
+
+    // TODO: get pointer once and add idx
+    uint8_t *item = GetEntryItem(entry, idx + 1);
+    uint8_t *item2 = GetEntryItem(entry, idx);
+
+    return item - item2;
+    // return entry->items[idx + 1] - entry->items[idx];
 }
 
 void DebugLogNsd(const nsd *n) {
@@ -403,6 +436,12 @@ void debug_nsd_headers(const uint8_t *raw_data) {
     }
 }
 
+// File-specific version of nsd_pte that maintains 32-bit alignment
+typedef struct {
+    uint32_t value; // Instead of the union with pointer
+    uint32_t key;   // The eid/key union is already 32-bit
+} nsd_pte_file;
+
 struct nsd *ReadNsd64(const char *filename) {
     size_t file_size;
     uint8_t *raw_data = NSFileRead(filename, &file_size);
@@ -430,16 +469,34 @@ struct nsd *ReadNsd64(const char *filename) {
     n->pages_offset = header[6];
     n->compressed_page_count = header[7];
 
-    // Copy compressed page offsets
-    const uint32_t *comp_offsets = (uint32_t *)(raw_data + 0x824);
-    memcpy(n->compressed_page_offsets, comp_offsets,
-           NSD_COMPRESSED_PAGE_COUNT * sizeof(uint32_t));
+    // Copy compressed page offsets starting at 0x420 (right after header)
+    const uint32_t *comp_offsets = (uint32_t *)(raw_data + 0x420);
+    memcpy(n->compressed_page_offsets, comp_offsets, NSD_COMPRESSED_PAGE_COUNT * sizeof(uint32_t));
 
-    // Copy page table
-    const uint8_t *page_table_start = raw_data + 0x824 +
-                                      (NSD_COMPRESSED_PAGE_COUNT * sizeof(uint32_t));
-    size_t remaining_size = file_size - (page_table_start - raw_data);
-    memcpy(n->page_table, page_table_start, remaining_size);
+    // Copy page table - starts after compressed page offsets
+    // const uint8_t *page_table_start = raw_data + 0x420 + (NSD_COMPRESSED_PAGE_COUNT * sizeof(uint32_t));
+    // size_t remaining_size = file_size - (page_table_start - raw_data);
+    // memcpy(n->page_table, page_table_start, remaining_size);
+
+    // Copy page table using the file-specific struct
+    const uint8_t *page_table_src = raw_data + 0x420 +
+                                    (NSD_COMPRESSED_PAGE_COUNT * sizeof(uint32_t));
+
+    // Convert from file format to memory format
+
+    nsd_pte_file *file_ptes = (nsd_pte_file *)page_table_src;
+    for (uint32_t i = 0; i < n->page_table_size; i++) {
+        n->page_table[i].value = file_ptes[i].value;
+        n->page_table[i].key = file_ptes[i].key;
+    }
+
+    // Calculate ldat position using file struct size
+    const uint8_t *ldat_src = page_table_src +
+                              (n->page_table_size * sizeof(nsd_pte_file));
+    nsd_ldat *dst_ldat = (nsd_ldat *)&n->page_table[n->page_table_size];
+
+    // Copy ldat
+    memcpy(dst_ldat, ldat_src, sizeof(nsd_ldat));
 
     free(raw_data);
     return n;
@@ -464,20 +521,26 @@ int NSCountEntries(ns_struct *nss, int type) {
 // (80012E64)
 // unreferenced; exists as inline code elsewhere
 static inline int NSPageTranslateOffsets(page *page) {
-    int i, ii;
     if (page->type == 1) {
         return SUCCESS;
     }
+
     if (page->magic != MAGIC_PAGE) {
         return ERROR_INVALID_MAGIC;
     }
-    for (i = page->entry_count - 1; i >= 0; i--) {
-        *(uint32_t *)&page->entries[i] += (uint32_t)page;
-        for (ii = page->entries[i]->item_count; ii >= 0; ii--) {
-            *(uint32_t *)&page->entries[i]->items[ii] += (uint32_t)page->entries[i];
+
+    // Instead of modifying the offsets to be absolute addresses,
+    // let's keep them as relative offsets from their entry
+    for (size_t i = page->entry_count - 1; i > 0; i--) {
+        entry *entry = GetPageEntry(page, i);
+        // Keep offsets relative to entry
+        for (size_t j = entry->item_count - 1; j > 0; j--) {
+            // Keep offset relative to its entry
+            uint32_t offset = entry->item_offsets[j];
+            // No need to modify the offset - keep it relative
         }
     }
-    page->entries[page->entry_count] += (uint32_t)page;
+
     return SUCCESS;
 }
 
@@ -499,7 +562,8 @@ static void NSPageUpdateEntries(int idx) {
     ps->state = 30;
     type = page->type;
     if (type == 0) {
-        entry = page->entries[0];
+        // entry_offsets is now an array of pointers, not offsets
+        entry = GetPageEntry(page, 0);
         hash = (entry->eid >> 15) & 0xFF;
         pte = ns.pte_buckets[hash];
         if (entry->type == 0) {
@@ -507,11 +571,14 @@ static void NSPageUpdateEntries(int idx) {
             return /* page*/;
         }
         for (i = 0; i < page->entry_count; i++) {
-            entry = page->entries[i];
+            entry = GetPageEntry(page, i);
             while ((pte++)->eid != entry->eid)
                 ;
             --pte;
-            pte->entry = entry;
+
+            // pte->entry = entry;
+            SetPteEntry(pte, entry);
+
             ps->ref_count++;
             type = entry->type;
             if (subsys[type].on_load) {
@@ -532,25 +599,27 @@ static void NSPageUpdateEntries(int idx) {
             tps->eid = tpg->eid;
             tps->pte = pte;
             tps->page = page;
-            pte->entry = (struct entry *)page;
+            // pte->entry = (struct entry *)page;
+            SetPteEntry(pte, (struct entry *)page);
         }
         ps->state = 1; /* free the original page */
         tps = &texture_pages[idx];
         ns.page_map[ps->pgid >> 1] = tps; /* point to new [texture] page struct */
         return /* (idx << 1)*/;
     } else if (type == 3 || type == 4) {
-        entry = page->entries[0];
+        entry = GetPageEntry(page, 0);
         hash = (entry->eid >> 15) & 0xFF;
         pte = ns.pte_buckets[hash] - 1;
         for (i = 0; i < page->entry_count; i++) {
-            entry = page->entries[i];
+            entry = GetPageEntry(page, i);
             while ((++pte)->eid != entry->eid)
                 ;
             if (i == 0) {
                 eid = page->type == 4 ? pte->eid : EID_NONE;
                 insts[ps->tail->idx % 8] = eid;
             }
-            pte->entry = entry;
+            // pte->entry = entry;
+            SetPteEntry(pte, entry);
             type = entry->type;
             if (subsys[type].on_load) {
                 (*subsys[type].on_load)(entry);
@@ -591,7 +660,7 @@ int NSTexturePageAllocate() {
     }
     /* steal the first slot occupied by a texture page
        that is not in the current zone load list, if any */
-    header = (zone_header *)cur_zone->items[0];
+    header = (zone_header *)GetEntryItem(cur_zone, 0);
     loadlist = &header->loadlist;
     for (i = 15; i >= 0; i--) {
         ps = &texture_pages[i];
@@ -599,12 +668,14 @@ int NSTexturePageAllocate() {
             continue;
         }
         for (ii = 0; ii < loadlist->entry_count; ii++) {
-            ref = (entry_ref *)&loadlist->entries[ii];
+            // ref = (entry_ref *)&loadlist->entries[ii];
+            ref = (entry_ref *)&loadlist->eids[ii];
             if (ref->is_eid) {
                 if (ref->eid == ps->eid) {
                     break;
                 }
-            } else if (ref->en->eid == ps->eid) {
+                // } else if (ref->en->eid == ps->eid) {
+            } else if (GetEntryRefEntry(ref)->eid == ps->eid) {
                 break;
             }
         }
@@ -766,7 +837,8 @@ page_struct *NSPageStruct(void *en_ref) {
     if (pte->pgid & 1) {
         ps = ns.page_map[pte->pgid >> 1];
     } else {
-        ps = NSEntryPageStruct(pte->entry);
+        // ps = NSEntryPageStruct(pte->entry);
+        ps = NSEntryPageStruct(GetPteEntry(pte));
         if (ps == 0) {
             return (page_struct *)SUCCESS;
         }
@@ -800,7 +872,8 @@ struct entry *NSOpen(void *en_ref, int flag, int count) {
             return 0;
         }
     } else if (count && !(pte->value & 2)) {
-        entry = pte->entry;
+        // entry = pte->entry;
+        entry = GetPteEntry(pte);
         ps = NSEntryPageStruct(entry);
         if (ps) {
             pgid = ps->pgid;
@@ -808,7 +881,8 @@ struct entry *NSOpen(void *en_ref, int flag, int count) {
             NSPageOpen(pgid, flag, count, eid);
         }
     }
-    return pte->entry;
+    // return pte->entry;
+    return GetPteEntry(pte);
 }
 
 // (80015458)
@@ -832,7 +906,8 @@ int NSClose(void *en_ref, int count) {
     } else if (pte->value & 2) {
         return 0;
     } else {
-        ps = NSEntryPageStruct(pte->entry);
+        // ps = NSEntryPageStruct(pte->entry);
+        ps = NSEntryPageStruct(GetPteEntry(pte));
         if (!ps || ISERRORCODE(ps)) {
             return 0;
         }
@@ -896,7 +971,8 @@ int NSCountAvailablePages2(void *list, int len) {
                 count++;
             }
         } else {
-            ps = NSEntryPageStruct(pte->entry);
+            // ps = NSEntryPageStruct(pte->entry);
+            ps = NSEntryPageStruct(GetPteEntry(pte));
             if (ps && (ps->type == 1 || !ps->ref_count)) {
                 count++;
             }
@@ -929,6 +1005,7 @@ nsd_pte *NSProbe(eid_t eid) {
 
     while ((pte++)->eid != eid)
         ;
+
     return --pte;
 }
 
@@ -958,7 +1035,8 @@ static inline struct entry *NSResolve(nsd_pte *pte) {
             return (struct entry *)ERROR_INVALID_REF;
         }
     }
-    return pte->entry;
+    // return pte->entry;
+    return GetPteEntry(pte);
 }
 
 // (80015A98)
@@ -1135,30 +1213,41 @@ void NSInit(ns_struct *nss, uint32_t lid) {
     nss->nsd = nsd;
     nss->ldat_eid = &nsd->ldat_eid;
 
-    nss->pte_buckets = nsd->page_table_buckets;
-    // nss->pte_buckets = malloc(NSD_PTB_COUNT * sizeof(nsd_pte *));
-    // for (i = 0; i < NSD_PTB_COUNT; i++) {
-    //     if (nsd->ptb_offsets[i] < nsd->page_table_size) {
-    //         nss->pte_buckets[i] = &nsd->page_table[nsd->ptb_offsets[i]];
-    //     } else {
-    //         nss->pte_buckets[i] = NULL;
-    //     }
-    // }
+    // nss->pte_buckets = nsd->page_table_buckets;
+    nss->pte_buckets = malloc(NSD_PTB_COUNT * sizeof(nsd_pte *));
+    for (i = 0; i < NSD_PTB_COUNT; i++) {
+        if (nsd->ptb_offsets[i] < nsd->page_table_size) {
+            nss->pte_buckets[i] = &nsd->page_table[nsd->ptb_offsets[i]];
+        } else {
+            nss->pte_buckets[i] = NULL;
+        }
+    }
 
     nss->page_table = nsd->page_table;
 
     // TODO: ldat doesn't seem to be after page table...
     nss->ldat = (nsd_ldat *)&nsd->page_table[nsd->page_table_size];
 
+    // print first 32 bytes of ldat for debugging
+    printf("First 32 bytes of ldat:\n");
+    for (i = 0; i < 32; i++) {
+        printf("%02X ", ((uint8_t *)nss->ldat)[i]);
+        if (i % 16 == 15) {
+            printf("\n");
+        }
+    }
+
+    printf("offset of ldat: %u\n", nsd->page_table_size * sizeof(nsd_pte));
+
     nsd_pte **buckets;
     uint32_t *offsets;
 
     /* convert pte bucket relative offsets to absolute pointers */
-    buckets = nss->pte_buckets;
-    offsets = nss->nsd->ptb_offsets;
-    for (i = 0; i < 256; i++) {
-        buckets[i] = &nss->page_table[offsets[i]];
-    }
+    // buckets = nss->pte_buckets;
+    // offsets = nss->nsd->ptb_offsets;
+    // for (i = 0; i < 256; i++) {
+    //     buckets[i] = &nss->page_table[offsets[i]];
+    // }
 
     TitleLoading(lid, nss->ldat->image_data, nsd);
 
@@ -1182,6 +1271,26 @@ void NSInit(ns_struct *nss, uint32_t lid) {
     /* load all uncompressed pages in nsf into pagemem */
     physical_page_count = page_count;
     pagemem = (page *)NSFileReadFrom(filename, nsd->pages_offset * SECTOR_SIZE, &pagemem_size);
+
+    // Debug first page
+    printf("\nFirst page debug:\n");
+    printf("Page memory at: %p\n", (void *)pagemem);
+    printf("Page magic: 0x%x\n", pagemem[0].magic);
+    printf("Page type: %d\n", pagemem[0].type);
+    printf("Page entry count: %d\n", pagemem[0].entry_count);
+
+    // Debug first entry in first page
+    entry *first_entry = GetPageEntry(&pagemem[0], 0);
+    printf("\nFirst entry debug:\n");
+    printf("Entry at: %p\n", (void *)first_entry);
+    printf("Entry magic: 0x%x\n", first_entry->magic);
+    printf("Entry type: %d\n", first_entry->type);
+    printf("Entry item count: %d\n", first_entry->item_count);
+    printf("First few item offsets:\n");
+    for (int i = 0; i < min(5, first_entry->item_count); i++) {
+        printf("  offset[%d]: 0x%x\n", i, first_entry->item_offsets[i]);
+    }
+
     pagemem = (page *)realloc(pagemem, physical_page_count * PAGE_SIZE);
     nss->physical_page_count = physical_page_count;
     /* init physical page structs */

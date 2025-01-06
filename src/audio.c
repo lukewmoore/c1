@@ -378,21 +378,9 @@ int AudioVoiceCreate(gool_object *obj, eid_t *eid, int vol) {
         return -1;
     } /* return error on failure to allocate */
     voice = &voices[idx]; /* get the allocated voice */
-#ifdef PSX
-    if (eid & 1) { /* eid pointer is actually an address? */
-        addr = (uint32_t)eid & 0xFFFFFFFE;
-    } else {
-        tag = NSLookup(eid);
-        if (ISERRORCODE(tag)) {
-            return -1;
-        } /* return error on failed lookup */
-        addr = tag >> 2;
-    }
-#else
     adio = NSLookup(eid);
-    size = adio->items[1] - adio->items[0];
-    SwLoadSample(idx, adio->items[0], size);
-#endif
+    size = GetEntryItem(adio, 1) - GetEntryItem(adio, 0);
+    SwLoadSample(idx, GetEntryItem(adio, 0), size);
     voice->params = voice_params;
     voice->params.amplitude = (vol * init_vol) >> 14;
     if (voice->params.flags & 0x40) {
@@ -665,7 +653,7 @@ void AudioUpdate() {
     }
     /* update midi */
     if (cur_zone) {
-        header = (zone_header *)cur_zone->items[0];
+        header = (zone_header *)GetEntryItem(cur_zone, 0);
         MidiUpdate(&header->gfx.midi); /* 0x304 */
     }
     if (fade_vol_step) {                                          /* volume fading? */

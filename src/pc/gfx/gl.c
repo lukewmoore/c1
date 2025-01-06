@@ -436,7 +436,7 @@ void GLClear() {
     glLoadIdentity();
     if (!(cur_display_flags & 0x80000)) {
         /* fill bg color(s) */
-        header = (zone_header *)cur_zone->items[0];
+        header = (zone_header *)GetEntryItem(cur_zone, 0);
         fh = header->gfx.vram_fill_height;
         if (cur_display_flags & 0x2000) {
             fill = vram_fill_color;

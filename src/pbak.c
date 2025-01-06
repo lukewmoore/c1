@@ -50,7 +50,7 @@ void PbakPlay(eid_t *eid) {
 
     ns.draw_skip_counter = 0;
     pbak = NSOpen(eid, 1, 1);
-    cur_pbak_header = (pbak_header *)pbak->items[0];
+    cur_pbak_header = (pbak_header *)GetEntryItem(pbak, 0);
     *eid = EID_NONE;
     argv[0] = 2279;
     argv[1] = 19993;
