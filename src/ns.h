@@ -17,10 +17,7 @@ typedef struct entry {
     eid_t eid;
     int32_t type;
     int32_t item_count;
-    // union {
     uint32_t item_offsets[0];
-    // uint8_t *items[0];
-    // };
 } entry;
 
 /* pgid */
@@ -46,10 +43,8 @@ typedef union {
         pgid_t pgid;
         uint32_t entry_count;
         uint32_t checksum;
-        // union {
+        // originally contained a union with entry pointers.
         uint32_t entry_offsets[0];
-        // struct entry *entries[0]; not available with 64-bit pointers
-        // };
     };
     uint8_t data[PAGE_SIZE];
 } page;
@@ -95,11 +90,12 @@ typedef struct nsd_ldat {
 #define NSD_COMPRESSED_PAGE_COUNT 64
 #define NSD_PTB_COUNT 256
 
+// note: pte is read from page table
 typedef struct {
     union {
         pgid_t pgid;
-        // struct entry *entry;
-        uint32_t entry_offset; // not required but useful for debugging
+        // entry *entry; originally this union is replaced with a pointer to the entry
+        int32_t entry_offset; // now we use an offset to the entry instead for relative 32 bit addressing
         uint32_t value;
     };
     union {
@@ -210,7 +206,7 @@ typedef union {
     eid_t eid;
     // ref->is_entry == (!ref->is_eid && !ref->is_value && ref->en->magic == MAGIC_ENTRY)
     // struct entry *en;
-    uint32_t en_offset;
+    int32_t en_offset;
     struct {
         uint32_t is_eid : 1;
         uint32_t is_value : 1;
@@ -220,7 +216,7 @@ typedef union {
     };
     uint32_t value;
     // nsd_pte *pte;
-    uint32_t pte_offset;
+    int32_t pte_offset;
 } entry_ref;
 
 typedef union {
@@ -274,4 +270,4 @@ extern uint8_t *NSFileReadRange(const char *filename, int start, int end, size_t
 extern struct entry *GetPageEntry(page *page, int i);
 extern uint8_t *GetEntryItem(struct entry *entry, int i);
 extern struct entry *GetEntryRefEntry(entry_ref *ref);
-extern struct nsd_pte *GetEntryRefPte(entry_ref *ref);
+extern nsd_pte *GetEntryRefPte(entry_ref *ref);

@@ -124,16 +124,14 @@ int ZdatOnLoad(entry *zone) {
     for (i = 0; i < header->path_count; i++) {
         idx = header->paths_idx + i;
         zone_path *path = (zone_path *)GetEntryItem(zone, idx);
-        uint32_t path_offset = (uint32_t)((uint8_t *)path - (uint8_t *)zone);
-        path->parent_zone_offset = path_offset;
+        SetZonePathParentZone(path, zone);
     }
 
     for (i = 0; i < header->entity_count; i++) {
         idx = header->paths_idx + header->path_count + i;
         zone_entity *entity = (zone_entity *)GetEntryItem(zone, idx);
         // entity->parent_zone = zone;
-        uint32_t entity_offset = (uint32_t)((uint8_t *)entity - (uint8_t *)zone);
-        entity->parent_zone_offset = entity_offset;
+        SetZoneEntityParentZone(entity, zone);
     }
 
     return SUCCESS;
@@ -149,7 +147,7 @@ int MdatOnLoad(entry *mdat) {
     for (i = 0; i < header->entity_count; i++) {
         entity = (mdat_entity *)GetEntryItem(mdat, 2 + i);
         // entity->parent_zone = mdat;
-        entity->parent_zone_offset = (uint32_t)((uint8_t *)entity - (uint8_t *)mdat);
+        SetZoneEntityParentZone(entity, mdat);
     }
     return SUCCESS;
 }
@@ -325,6 +323,7 @@ void LevelUpdate(entry *zone, zone_path *path, int32_t progress, uint32_t flags)
 
             for (i = 0; i < header->neighbor_count; i++) {
                 // TODO: looks like neighbor at neighbor_count is always 1???
+                // not anymore??????
                 neighbor = NSLookup((entry_ref *)&header->neighbors[i]);
                 n_header = (zone_header *)GetEntryItem(neighbor, 0);
                 if (!(n_header->display_flags & 1)) { /* bit 1 clear? */
@@ -1502,7 +1501,7 @@ int ZonePathProgressToLoc(zone_path *path, int progress, gool_vectors *cam) {
     int i, neighbor_idx, n_path_idx;
 
     // zone = path->parent_zone;
-    zone = (entry *)((uint8_t *)path - path->parent_zone_offset);
+    zone = GetZonePathParentZone(path);
     header = (zone_header *)GetEntryItem(zone, 0);
     z_rect = (zone_rect *)GetEntryItem(zone, 1);
     pt_idx = abs(progress) >> 8;

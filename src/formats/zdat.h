@@ -43,11 +43,11 @@ typedef struct {
     // wgeo_texinfo *texinfos;
     // struct _entry *tpages[8];
 
-    uint32_t header_offset;    // Instead of wgeo_header *header
-    uint32_t polygons_offset;  // Instead of wgeo_polygon *polygons
-    uint32_t vertices_offset;  // Instead of wgeo_vertex *vertices
-    uint32_t texinfos_offset;  // Instead of wgeo_texinfo *texinfos
-    uint32_t tpage_offsets[8]; // Instead of struct _entry *tpages[8]
+    int32_t header_offset;    // Instead of wgeo_header *header
+    int32_t polygons_offset;  // Instead of wgeo_polygon *polygons
+    int32_t vertices_offset;  // Instead of wgeo_vertex *vertices
+    int32_t texinfos_offset;  // Instead of wgeo_texinfo *texinfos
+    int32_t tpage_offsets[8]; // Instead of struct _entry *tpages[8]
 } zone_world;
 
 typedef struct {
@@ -123,7 +123,7 @@ typedef struct {
 typedef struct {
     eid_t slst;
     // entry *parent_zone;
-    uint32_t parent_zone_offset;
+    int32_t parent_zone_offset;
     uint32_t neighbor_path_count;
     zone_neighbor_path neighbor_paths[4];
     uint8_t entrance_index;
@@ -149,7 +149,7 @@ typedef struct {
 
 typedef struct {
     // entry *parent_zone;
-    uint32_t parent_zone_offset;
+    int32_t parent_zone_offset;
     uint16_t spawn_flags;
     uint16_t group;
     uint16_t id;
@@ -169,3 +169,8 @@ typedef struct {
         zone_entity_path_point loc;
     };
 } zone_entity;
+
+extern entry *GetZonePathParentZone(zone_path *path);
+extern void SetZonePathParentZone(zone_path *path, entry *zone);
+extern entry *GetZoneEntityParentZone(zone_entity *entity);
+extern void SetZoneEntityParentZone(zone_entity *entity, entry *zone);

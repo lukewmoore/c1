@@ -259,12 +259,11 @@ int GoolObjectOrientOnPath(gool_object *obj, int progress, vec *loc) {
     }
 
     // type = entity->parent_zone->type;
-    // TODO: getter for zone_entity parent_zone
-    entry *tmp_zone = (entry *)((uint8_t *)entity - entity->parent_zone_offset);
-    type = tmp_zone->type;
+    entry *entity_parent_zone = GetZoneEntityParentZone(entity);
+    type = entity_parent_zone->type;
 
     if (type == 7) {
-        rect = (zone_rect *)GetEntryItem(tmp_zone, 1);
+        rect = (zone_rect *)GetEntryItem(entity_parent_zone, 1);
         zone_loc = (vec *)&rect->x;
         scale = 2;
     } else if (type == 17) { /* mdat entity */

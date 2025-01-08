@@ -74,7 +74,7 @@ static void CamAdjustProgress(int32_t speed, cam_info *cam) {
                     next_progress = -next_progress; /* use the equivalent negative value */
                 }
                 // next_zone = cam->next_path->parent_zone;
-                next_zone = (entry *)((uint8_t *)cam->next_path - cam->next_path->parent_zone_offset);
+                next_zone = GetZonePathParentZone(cam->next_path);
                 next_progress += cam->entrance; /* adjust by the entrance offset??? */
                 LevelUpdate(next_zone, cam->next_path, min(next_progress, cam->progress), 0);
                 return;
@@ -93,7 +93,7 @@ static void CamAdjustProgress(int32_t speed, cam_info *cam) {
                     next_progress = -next_progress;
                 }
                 // next_zone = cam->next_path->parent_zone;
-                next_zone = (entry *)((uint8_t *)cam->next_path - cam->next_path->parent_zone_offset);
+                next_zone = GetZonePathParentZone(cam->next_path);
                 next_progress += cam->entrance; /* adjust by the entrance offset??? */
                 LevelUpdate(next_zone, cam->next_path, max(next_progress, cam->progress), 0);
                 return;
@@ -112,7 +112,7 @@ static int CamGetProgress(vec *trans, zone_path *path, cam_info *cam, int flags,
     int dist, progress, pt_idx, entrance, exit;
 
     // zone = path->parent_zone;
-    zone = (entry *)((uint8_t *)path - path->parent_zone_offset);
+    zone = GetZonePathParentZone(path);
     rect = (zone_rect *)GetEntryItem(zone, 1);
     cam->progress_made = 1;
     trans_path.x = rect->x + path->points[0].x;
@@ -194,7 +194,7 @@ static int CamGetProgress2(vec *trans, zone_path *path, cam_info *cam, int flags
     int i, is_nearer;
 
     // zone = path->parent_zone;
-    zone = (entry *)((uint8_t *)path - path->parent_zone_offset);
+    zone = GetZonePathParentZone(path);
     rect = (zone_rect *)GetEntryItem(zone, 1);
     cam->progress_made = 1;
     progress = -1;
@@ -495,7 +495,7 @@ static void CamFollow(gool_object *obj, uint32_t flag) {
     if (delta_dist <= 30000) { /* small change in distance? */
         path = cam_nearest->cur_path;
         // zone = path->parent_zone;
-        zone = (entry *)((uint8_t *)path - path->parent_zone_offset);
+        zone = GetZonePathParentZone(path);
         progress = cam_nearest->progress;
         LevelUpdate(zone, path, progress, 0); /* update level with target zone/path/progress */
         cam_speed = cam_nearest->delta_progress;
@@ -576,7 +576,7 @@ int CamUpdate() {
                 n_progress = (n_path->length - 1) << 8;
             }
             // n_zone = n_path->parent_zone;
-            zone = (entry *)((uint8_t *)path - path->parent_zone_offset);
+            n_zone = GetZonePathParentZone(n_path);
             n_header = (zone_header *)GetEntryItem(n_zone, 0);
             LevelUpdate(n_zone, n_path, n_progress, 0); /* skip forward to next path */
             if (!(n_header->gfx.flags & 0x1000)) {
@@ -644,7 +644,7 @@ int CamUpdate() {
                     n_path_idx = i;
                 }
                 // zone_s1 = path_s1->parent_zone;
-                zone_s1 = (entry *)((uint8_t *)path_s1 - path_s1->parent_zone_offset);
+                zone_s1 = GetZonePathParentZone(path_s1);
                 path_s1 = ZoneGetNeighborPath(zone_s1, path_s1, n_path_idx);
                 if (neighbor_path.goal & 1) {
                     n_progress = 0;
@@ -669,7 +669,7 @@ int CamUpdate() {
         }
         if (path && (path != cur_path || progress != cur_progress)) {
             // zone = path->parent_zone;
-            zone = (entry *)((uint8_t *)path - path->parent_zone_offset);
+            zone = GetZonePathParentZone(path);
             LevelUpdate(zone, path, progress, 0);
         }
         return 1;
@@ -695,7 +695,7 @@ int CamUpdate() {
                     n_progress = (n_path->length - 1) << 8;
                 }
                 // n_zone = n_path->parent_zone;
-                n_zone = (entry *)((uint8_t *)n_path - n_path->parent_zone_offset);
+                n_zone = GetZonePathParentZone(n_path);
                 LevelUpdate(n_zone, n_path, n_progress, 0);
             }
         } else {
@@ -711,7 +711,7 @@ int CamUpdate() {
                     n_progress = (n_path->length - 1) << 8;
                 }
                 // n_zone = n_path->parent_zone;
-                n_zone = (entry *)((uint8_t *)n_path - n_path->parent_zone_offset);
+                n_zone = GetZonePathParentZone(n_path);
                 LevelUpdate(n_zone, n_path, n_progress, 0);
             }
         }

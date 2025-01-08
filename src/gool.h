@@ -273,9 +273,9 @@ typedef struct _gool_object {
     // entry *global;
     // entry *external;
     // entry *zone;
-    uint32_t global_offset;
-    uint32_t external_offset;
-    uint32_t zone_offset;
+    int32_t global_offset;
+    int32_t external_offset;
+    int32_t zone_offset;
     uint32_t state;
     union {
         gool_colors colors;

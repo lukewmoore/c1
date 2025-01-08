@@ -38,6 +38,7 @@ extern int use_cd;
 extern struct entry *cur_zone;
 extern eid_t insts[8];
 
+// page entry offet is a manual relative offset, not from binary
 struct entry *GetPageEntry(page *page, int i) {
     assert(i >= 0 && i < page->entry_count);
     return (struct entry *)((uint8_t *)page + page->entry_offsets[i]);
@@ -52,16 +53,40 @@ struct entry *GetEntryRefEntry(entry_ref *ref) {
     return (struct entry *)((uint8_t *)ref + ref->en_offset);
 }
 
-struct nsd_pte *GetEntryRefPte(entry_ref *ref) {
-    return (struct nsd_pte *)((uint8_t *)ref + ref->pte_offset);
+// ref pte offet is a manual relative offset, not from binary
+nsd_pte *GetEntryRefPte(entry_ref *ref) {
+    return (nsd_pte *)((uint8_t *)ref + ref->pte_offset);
 }
 
+// ref pte offet is a manual relative offset, not from binary
+static inline void SetEntryRefPte(entry_ref *ref, nsd_pte *pte) {
+    ref->pte_offset = (uint32_t)((uint8_t *)pte - (uint8_t *)ref);
+}
+
+// pte entry offet is a manual relative offset, not from binary
 static inline entry *GetPteEntry(nsd_pte *pte) {
-    return (entry *)((uint8_t *)pte + pte->value);
+    return (entry *)((uint8_t *)pte + pte->entry_offset);
 }
 
+// pte entry offet is a manual relative offset, not from binary
 static inline void SetPteEntry(nsd_pte *pte, entry *entry) {
-    pte->value = (uint32_t)((uint8_t *)entry - (uint8_t *)pte);
+    pte->entry_offset = (uint32_t)((uint8_t *)entry - (uint8_t *)pte);
+}
+
+entry *GetZonePathParentZone(zone_path *path) {
+    return (entry *)((uint8_t *)path + path->parent_zone_offset);
+}
+
+void SetZonePathParentZone(zone_path *path, entry *zone) {
+    path->parent_zone_offset = (uint32_t)((uint8_t *)zone - (uint8_t *)path);
+}
+
+entry *GetZoneEntityParentZone(zone_entity *entity) {
+    return (entry *)((uint8_t *)entity + entity->parent_zone_offset);
+}
+
+void SetZoneEntityParentZone(zone_entity *entity, entry *zone) {
+    entity->parent_zone_offset = (uint32_t)((uint8_t *)zone - (uint8_t *)entity);
 }
 
 // (80012580)
@@ -531,6 +556,7 @@ static inline int NSPageTranslateOffsets(page *page) {
 
     // Instead of modifying the offsets to be absolute addresses,
     // let's keep them as relative offsets from their entry
+    // this is because we no longer store pointers, but offsets for 32 bit alignment
     for (size_t i = page->entry_count - 1; i > 0; i--) {
         entry *entry = GetPageEntry(page, i);
         // Keep offsets relative to entry
@@ -548,7 +574,7 @@ static inline int NSPageTranslateOffsets(page *page) {
 static void NSPageUpdateEntries(int idx) {
     page_struct *ps, *tps;
     page *page;
-    struct entry *entry;
+    entry *entry;
     eid_t eid;
     nsd_pte *pte, *bucket;
     int i, type, hash;
@@ -577,6 +603,7 @@ static void NSPageUpdateEntries(int idx) {
             --pte;
 
             // pte->entry = entry;
+            // Set the pte entry offset from relative page offset
             SetPteEntry(pte, entry);
 
             ps->ref_count++;
@@ -831,9 +858,13 @@ page_struct *NSPageStruct(void *en_ref) {
 
     ref = (entry_ref *)en_ref;
     if (ref->is_eid) {
-        ref->pte = NSProbe(ref->eid);
+        // ref->pte = NSProbe(ref->eid);
+        pte = NSProbe(ref->eid);
+        SetEntryRefPte(ref, pte);
+    } else {
+        // pte = ref->pte;
+        pte = GetEntryRefPte(ref);
     }
-    pte = ref->pte;
     if (pte->pgid & 1) {
         ps = ns.page_map[pte->pgid >> 1];
     } else {
@@ -860,9 +891,11 @@ struct entry *NSOpen(void *en_ref, int flag, int count) {
         return (struct entry *)ERROR_INVALID_REF;
     }
     if (ref->is_eid) {
-        pte = ref->pte = NSProbe(ref->eid);
+        pte = NSProbe(ref->eid);
+        SetEntryRefPte(ref, pte);
     } else {
-        pte = ref->pte;
+        // pte = ref->pte;
+        pte = GetEntryRefPte(ref);
     }
     if (pte->pgid & 1) { /* unresolved page? */
         pgid = pte->pgid;
@@ -871,7 +904,8 @@ struct entry *NSOpen(void *en_ref, int flag, int count) {
         if (pte->pgid & 1) { /* still a page id? (i.e. page could not be opened and resolved) */
             return 0;
         }
-    } else if (count && !(pte->value & 2)) {
+    } else if (
+        count && !(pte->value & 2)) {
         // entry = pte->entry;
         entry = GetPteEntry(pte);
         ps = NSEntryPageStruct(entry);
@@ -895,9 +929,11 @@ int NSClose(void *en_ref, int count) {
 
     ref = (entry_ref *)en_ref;
     if (ref->is_eid) {
-        pte = ref->pte = NSProbe(ref->eid);
+        pte = NSProbe(ref->eid);
+        SetEntryRefPte(ref, pte);
     } else {
-        pte = ref->pte;
+        // pte = ref->pte;
+        pte = GetEntryRefPte(ref);
     }
     if (pte->pgid & 1) {
         pgid = pte->pgid;
@@ -953,9 +989,12 @@ int NSCountAvailablePages2(void *list, int len) {
     ref = (entry_ref **)list;
     for (i = 0; i < len; i++) {
         if ((*ref)->is_eid) {
-            pte = (*ref)->pte = NSProbe((*ref)->eid);
+            // pte = (*ref)->pte = NSProbe((*ref)->eid);
+            pte = NSProbe((*ref)->eid);
+            SetEntryRefPte(*ref, pte);
         } else {
-            pte = (*ref)->pte;
+            // pte = (*ref)->pte;
+            pte = GetEntryRefPte(*ref);
         }
         if ((pte->pgid & 1) || (pte->value & 2)) {
             pgid = pte->pgid;
@@ -1045,9 +1084,12 @@ struct entry *NSLookup(void *en_ref) {
     nsd_pte *pte;
     ref = (entry_ref *)en_ref;
     if (ref->is_eid) {
-        pte = ref->pte = NSProbe(ref->eid);
+        // pte = ref->pte = NSProbe(ref->eid);
+        pte = NSProbe(ref->eid);
+        SetEntryRefPte(ref, pte);
     } else {
-        pte = ref->pte; /* ??? */
+        // pte = ref->pte; /* ??? */
+        pte = GetEntryRefPte(ref);
     }
     return NSResolve(pte);
 }
