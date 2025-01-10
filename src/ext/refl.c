@@ -859,14 +859,14 @@ refl_type gool_links_type = {
     .name = "gool_links",
     .flags = REFL_FLAGS_STATIC,
     .fields = {
-        REFL_FIELD(gool_links, gool_object *, self),        // 0
-        REFL_FIELD(gool_links, gool_object *, parent),      // 1
-        REFL_FIELD(gool_links, gool_object *, sibling),     // 2
-        REFL_FIELD(gool_links, gool_object *, children),    // 3
-        REFL_FIELD(gool_links, gool_object *, creator),     // 4
-        REFL_FIELD(gool_links, gool_object *, player),      // 5
-        REFL_FIELD(gool_links, gool_object *, collider),    // 6
-        REFL_FIELD(gool_links, gool_object *, interrupter), // 7
+        // REFL_FIELD(gool_links, gool_object *, self),        // 0
+        // REFL_FIELD(gool_links, gool_object *, parent),      // 1
+        // REFL_FIELD(gool_links, gool_object *, sibling),     // 2
+        // REFL_FIELD(gool_links, gool_object *, children),    // 3
+        // REFL_FIELD(gool_links, gool_object *, creator),     // 4
+        // REFL_FIELD(gool_links, gool_object *, player),      // 5
+        // REFL_FIELD(gool_links, gool_object *, collider),    // 6
+        // REFL_FIELD(gool_links, gool_object *, interrupter), // 7
         REFL_TERM }
 };
 
@@ -874,8 +874,8 @@ refl_type gool_link_type = {
     .name = "gool_link",
     .flags = REFL_FLAGS_STATIC,
     .fields = {
-        REFL_FIELD(gool_link, gool_object *, prev),
-        REFL_FIELD(gool_link, gool_object *, next),
+        // REFL_FIELD(gool_link, gool_object *, prev),
+        // REFL_FIELD(gool_link, gool_object *, next),
         REFL_TERM }
 };
 
@@ -911,14 +911,14 @@ refl_type gool_process_type = {
         // REFL_FIELD(gool_process,gool_object*,player),
         // REFL_FIELD(gool_process,gool_object*,collider),
         // REFL_FIELD(gool_process,gool_object*,interrupter),
-        REFL_FIELD(gool_process, gool_object *, links[0]),
-        REFL_FIELD(gool_process, gool_object *, links[1]),
-        REFL_FIELD(gool_process, gool_object *, links[2]),
-        REFL_FIELD(gool_process, gool_object *, links[3]),
-        REFL_FIELD(gool_process, gool_object *, links[4]),
-        REFL_FIELD(gool_process, gool_object *, links[5]),
-        REFL_FIELD(gool_process, gool_object *, links[6]),
-        REFL_FIELD(gool_process, gool_object *, links[7]),
+        // REFL_FIELD(gool_process, gool_object *, links[0]),
+        // REFL_FIELD(gool_process, gool_object *, links[1]),
+        // REFL_FIELD(gool_process, gool_object *, links[2]),
+        // REFL_FIELD(gool_process, gool_object *, links[3]),
+        // REFL_FIELD(gool_process, gool_object *, links[4]),
+        // REFL_FIELD(gool_process, gool_object *, links[5]),
+        // REFL_FIELD(gool_process, gool_object *, links[6]),
+        // REFL_FIELD(gool_process, gool_object *, links[7]),
         REFL_FIELD(gool_process, gool_vectors, vectors),
         REFL_ARRAY_FIELD(gool_process, vec, vectors_v, 6),
         REFL_ARRAY_FIELD(gool_process, ang, vectors_a, 6),
@@ -927,24 +927,24 @@ refl_type gool_process_type = {
         REFL_FIELD(gool_process, uint32_t, status_c),
         REFL_FIELD(gool_process, uint32_t, subtype),
         REFL_FIELD(gool_process, uint32_t, pid_flags),
-        REFL_FIELD(gool_process, uint32_t *, sp),
-        REFL_FIELD(gool_process, uint32_t *, pc),
-        REFL_FIELD(gool_process, uint32_t *, fp),
-        REFL_FIELD(gool_process, uint32_t *, tp),
-        REFL_FIELD(gool_process, uint32_t *, ep),
-        REFL_FIELD(gool_process, uint32_t *, once_p),
+        // REFL_FIELD(gool_process, uint32_t *, sp_compat_offset),
+        // REFL_FIELD(gool_process, uint32_t *, pc_compat_offset),
+        // REFL_FIELD(gool_process, uint32_t *, fp_compat_offset),
+        // REFL_FIELD(gool_process, uint32_t *, tp_compat_offset),
+        // REFL_FIELD(gool_process, uint32_t *, ep_compat_offset),
+        // REFL_FIELD(gool_process, uint32_t *, once_p_compat_offset),
         REFL_FIELD(gool_process, uint32_t, misc_flag),
-        REFL_FIELD(gool_process, gool_object *, misc_child),
+        // REFL_FIELD(gool_process, gool_object *, misc_child),
         REFL_FIELD(gool_process, uint32_t, misc_node),
-        REFL_FIELD(gool_process, entry *, misc_entry),
+        // REFL_FIELD(gool_process, entry *, misc_entry),
         REFL_FIELD(gool_process, uint32_t, misc_memcard),
         REFL_FIELD(gool_process, uint32_t, ack),
         REFL_FIELD(gool_process, uint32_t, anim_stamp),
         REFL_FIELD(gool_process, uint32_t, state_stamp),
         REFL_FIELD(gool_process, uint32_t, anim_counter),
-        REFL_FIELD(gool_process, gool_anim *, anim_seq),
+        // REFL_FIELD(gool_process, gool_anim *, anim_seq),
         REFL_FIELD(gool_process, uint32_t, anim_frame),
-        REFL_FIELD(gool_process, zone_entity *, entity),
+        // REFL_FIELD(gool_process, zone_entity *, entity),
         REFL_FIELD(gool_process, int32_t, path_progress),
         REFL_FIELD(gool_process, uint32_t, path_length),
         REFL_FIELD(gool_process, uint32_t, floor_y),
@@ -972,7 +972,7 @@ refl_type gool_handle_type = {
     .flags = REFL_FLAGS_STATIC,
     .fields = {
         REFL_FIELD(gool_handle, int, type),
-        REFL_FIELD(gool_handle, gool_object *, children),
+        // REFL_FIELD(gool_handle, gool_object *, children),
         REFL_FIELD(gool_handle, int, subtype),
         REFL_TERM }
 };
@@ -998,7 +998,7 @@ refl_type gool_objnode_type = {
     .name = "gool_objnode",
     .flags = REFL_FLAGS_STATIC,
     .fields = {
-        REFL_FIELD(gool_objnode, gool_object *, obj),
+        // REFL_FIELD(gool_objnode, gool_object *, obj),
         REFL_FIELD(gool_objnode, uint32_t, node),
         REFL_FIELD(gool_objnode, uint32_t, value),
         REFL_TERM }
@@ -1008,12 +1008,12 @@ refl_type gool_event_query_type = {
     .name = "gool_event_query",
     .flags = REFL_FLAGS_STATIC,
     .fields = {
-        REFL_FIELD(gool_event_query, gool_object *, sender),
+        // REFL_FIELD(gool_event_query, gool_object *, sender),
         REFL_FIELD(gool_event_query, uint32_t, event),
         REFL_FIELD(gool_event_query, int, argc),
         REFL_FIELD(gool_event_query, int, type),
         REFL_FIELD(gool_event_query, int, count),
-        REFL_FIELD(gool_event_query, uint32_t *, argv),
+        // REFL_FIELD(gool_event_query, uint32_t *, argv),
         REFL_TERM }
 };
 
@@ -1022,8 +1022,8 @@ refl_type gool_nearest_query_type = {
     .flags = REFL_FLAGS_STATIC,
     .fields = {
         REFL_FIELD(gool_nearest_query, uint32_t, categories),
-        REFL_FIELD(gool_nearest_query, gool_object *, obj),
-        REFL_FIELD(gool_nearest_query, gool_object *, nearest_obj),
+        // REFL_FIELD(gool_nearest_query, gool_object *, obj),
+        // REFL_FIELD(gool_nearest_query, gool_object *, nearest_obj),
         REFL_FIELD(gool_nearest_query, int32_t, dist),
         REFL_FIELD(gool_nearest_query, uint32_t, event),
         REFL_TERM }
@@ -1064,7 +1064,7 @@ refl_type gool_const_buf_type = {
     .name = "gool_const_buf",
     .flags = REFL_FLAGS_STATIC,
     .fields = {
-        REFL_FIELD(gool_const_buf, uint32_t *, buf),
+        // REFL_FIELD(gool_const_buf, uint32_t *, buf),
         REFL_FIELD(gool_const_buf, int, idx),
         REFL_TERM }
 };

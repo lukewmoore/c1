@@ -707,7 +707,9 @@ static inline wgeo_vertex *SwWorldVertex(vert_id vert_id) {
     header = (zone_header *)GetEntryItem(cur_zone, 0);
     world = &header->worlds[world_idx];
     // poly = &world->polygons[poly_idx];
-    poly = (wgeo_polygon *)((uint8_t *)world + world->polygons_offset) + poly_idx;
+    // TODO: is this correct?
+    poly = &((wgeo_polygon *)get_generic(world->polygons_handle))[poly_idx];
+    // poly = (wgeo_polygon *)((uint8_t *)world + world->polygons_offset) + poly_idx;
     switch (vert_idx) {
     case 0:
         vert_idx = poly->a_idx;
@@ -720,7 +722,7 @@ static inline wgeo_vertex *SwWorldVertex(vert_id vert_id) {
         break;
     }
     // vert = &world->vertices[vert_idx];
-    vert = (wgeo_vertex *)((uint8_t *)world + world->vertices_offset) + vert_idx;
+    vert = &((wgeo_vertex *)get_generic(world->vertices_handle))[vert_idx];
     return vert;
 }
 
@@ -765,17 +767,11 @@ static void SwTransformAndShadeWorlds(
         // texinfos = world->texinfos;
         // tpags = world->header->tpags;
 
-        // get from polygons_offset, etc. instead for 64 bit systems
-        int offs;
-        offs = world->polygons_offset;
-        polys = (wgeo_polygon *)((uint8_t *)world + offs);
-        offs = world->vertices_offset;
-        verts = (wgeo_vertex *)((uint8_t *)world + offs);
-        offs = world->texinfos_offset;
-        texinfos = (wgeo_texinfo *)((uint8_t *)world + offs);
-        offs = world->header_offset;
-        wgeo_header *wgeoheader = (wgeo_header *)((uint8_t *)world + offs);
-        tpags = wgeoheader->tpags;
+        // new 64 bit pointers
+        polys = (wgeo_polygon *)get_generic(world->polygons_handle);
+        verts = (wgeo_vertex *)get_generic(world->vertices_handle);
+        texinfos = (wgeo_texinfo *)get_generic(world->texinfos_handle);
+        tpags = ((wgeo_header *)get_generic(world->header_handle))->tpags;
 
         trans = world->trans;
         poly_idx = poly_id.poly_idx;

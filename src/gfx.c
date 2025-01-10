@@ -10,14 +10,6 @@
 #include "formats/tgeo.h"
 #include "formats/wgeo.h"
 
-static inline wgeo_header *GetWorldHeader(zone_world *world, entry *wgeo) {
-    return (wgeo_header *)((uint8_t *)wgeo + world->header_offset);
-}
-
-static inline wgeo_polygon *GetWorldPolygons(zone_world *world, entry *wgeo) {
-    return (wgeo_polygon *)((uint8_t *)wgeo + world->polygons_offset);
-}
-
 static inline void GfxFillMatrix(mat16 *m, uint16_t val) {
     m->m[0][0] = val;
     m->m[0][1] = val;
@@ -1601,15 +1593,11 @@ void GfxLoadWorlds(zone_header *header) {
         // world->vertices=(wgeo_vertex*)GetEntryItem(wgeo, 2);
         // world->texinfos=w_header->texinfos;
 
-        // Convert pointers to offsets relative to their base
-        world->header_offset = (uint32_t)((uint8_t *)w_header - (uint8_t *)wgeo);
-
-        // For GetEntryItem results
-        world->polygons_offset = (uint32_t)((uint8_t *)GetEntryItem(wgeo, 1) - (uint8_t *)wgeo);
-        world->vertices_offset = (uint32_t)((uint8_t *)GetEntryItem(wgeo, 2) - (uint8_t *)wgeo);
-
-        // For the texinfos
-        world->texinfos_offset = (uint32_t)((uint8_t *)w_header->texinfos - (uint8_t *)wgeo);
+        // new 64 bit pointers
+        world->header_handle = store_generic(w_header);
+        world->polygons_handle = store_generic((wgeo_polygon*)GetEntryItem(wgeo, 1));
+        world->vertices_handle = store_generic((wgeo_vertex*)GetEntryItem(wgeo, 2));
+        world->texinfos_handle = store_generic(w_header->texinfos);
 
         for (ii = 0; ii < w_header->tpag_count; ii++) {
             tpag = NSLookup(&w_header->tpags[ii]);
@@ -1706,7 +1694,8 @@ void GfxTransformWorldsFog(void *ot) {
     for (i = 0; i < header->world_count; i++) {
         world = &params.worlds[i];
         // w_header = world->header;
-        w_header = (wgeo_header *)((uint8_t *)worlds + world->header_offset);
+        w_header = (wgeo_header *)get_generic(world->header_handle);
+        // w_header = (wgeo_header *)((uint8_t *)worlds + world->header_offset);
         is_backdrop = w_header->is_backdrop;
         val = is_backdrop ? 0xFFFF : far;
         world->tag = (shamt << 16) | val; /* tag is unioned with wgeo */

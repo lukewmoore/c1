@@ -492,12 +492,15 @@ static int StopAtFloor(gool_object *obj, vec *trans, vec *next_trans, zone_query
     query->summary_results.floor_nodes_y = floor_nodes_y != -999999999 ? floor_nodes_y : 0;
     query->summary_results.solid_nodes_y = solid_nodes_y != -999999999 ? solid_nodes_y : 0;
     query->summary_results.solid_objs_y = solid_objs_y != -999999999 ? solid_objs_y : 0;
-    flags = 0x40001;                                                  /* assume on the floor and hitting the floor */
-    if (solid_objs_y != -999999999) {                                 /* solid object below? */
-        floor_nodes_y = solid_objs_y;                                 /* overrides the floor */
-        flags = 0x200001;                                             /* on an object and hitting at the top */
-        if (obj->process.links[6]) {                                  /* object is set as the collider? */
-            if (obj->process.links[6]->process.status_b & 0x400000) { /* object beneath us is a box? */
+    flags = 0x40001;                  /* assume on the floor and hitting the floor */
+    if (solid_objs_y != -999999999) { /* solid object below? */
+        floor_nodes_y = solid_objs_y; /* overrides the floor */
+        flags = 0x200001;             /* on an object and hitting at the top */
+        // if (obj->process.links[6]) {                                  /* object is set as the collider? */
+        gool_object *tmp_collider;
+        if ((tmp_collider = get_gool_object(obj->process.links_handle[6]))) {
+            // if (obj->process.links[6]->process.status_b & 0x400000) { /* object beneath us is a box? */
+            if (tmp_collider->process.status_b & 0x400000) { /* object beneath us is a box? */
                 floor_offset = 0x19000;                               /* set floor offset to box height */
             }
             if ((obj->process.anim_stamp - obj->process.floor_impact_stamp) >= 4) { /* more than 4 frames since last hitting floor? */
@@ -635,7 +638,7 @@ static int StopAtZone(gool_object *obj, vec *next_trans) {
     }
 
     // TODO: how to check if zone offset is valid?
-    if (obj->zone_offset == 0) {
+    if (!get_entry(obj->zone_handle)) {
         return -255;
     }
 
@@ -843,7 +846,8 @@ static void PlotObjWalls(vec *next_trans, gool_object *obj, zone_query *query, i
     test_bound.p2.z = obj_bound.p2.z + (100 << 8);
     for (i = 0; i < object_bound_count; i++) {
         bound = &object_bounds[i];
-        if (flag && bound->obj == obj->process.links[6] && test_bound.p1.y >= bound->obj->bound.p2.y) {
+        // if (flag && bound->obj == obj->process.links[6] && test_bound.p1.y >= bound->obj->bound.p2.y) {
+        if (flag && bound->obj == get_gool_object(obj->process.links_handle[6]) && test_bound.p1.y >= bound->obj->bound.p2.y) {
             continue;
         }
         if (!TestBoundIntersection(&test_bound, &bound->obj->bound)) {
@@ -1081,11 +1085,12 @@ int StopAtWalls(vec *trans, int x, int z, int *adj_x, int *adj_z, gool_object *o
         if (x == 16 || z == 16) { /* check was done w.r.t. the origin? */
             break;                /* all bits in the bitmap have been tested, so break */
         }
-        if (!obj->process.links[6]) { /* no collider? */
+        // if (!obj->process.links[6]) { /* no collider? */
+        if (!get_gool_object(obj->process.links_handle[6])) { /* no collider? */
             break;                    /* shouldn't expect to find any non-solid bits, so break */
         }
 
-        collider_header = (gool_header *)GetEntryItem(GetGoolObjectGlobal(obj->process.links[6]), 0);
+        collider_header = (gool_header *)GetEntryItem(GetGoolObjectGlobal(get_gool_object(obj->process.links_handle[6])), 0);
         if (collider_header->type == 0x22) { /* collider is a box? */
             break;                           /* shouldn't expect to find any non-solid bits, so break */
         }
@@ -1099,10 +1104,13 @@ int StopAtWalls(vec *trans, int x, int z, int *adj_x, int *adj_z, gool_object *o
         }
     }
     if (ret < 0x100) { /* function has not been called recursively? */
-        if (obj->process.links[6]) {
-            collider_header = (gool_header *)GetEntryItem(GetGoolObjectGlobal(obj->process.links[6]), 0);
+        // if (obj->process.links[6]) {
+        gool_object *tmp_collider = get_gool_object(obj->process.links_handle[6]);
+        if (tmp_collider) {
+            collider_header = (gool_header *)GetEntryItem(GetGoolObjectGlobal(tmp_collider), 0);
         }
-        if (!obj->process.links[6] || collider_header->type != 0x22) { /* no collider or its a non-box? */
+        // if (!obj->process.links[6] || collider_header->type != 0x22) { /* no collider or its a non-box? */
+        if (!tmp_collider || collider_header->type != 0x22) { /* no collider or its a non-box? */
             if (ReplotWalls(0, 0, trans, obj)) {
                 ReplotWalls(1, 1, trans, obj);
                 PlotObjWalls(trans, obj, &cur_zone_query, 0);

@@ -17,6 +17,15 @@
 #include "solid.h"
 #include "title.h"
 
+// Memory alignment attribute for 32-bit alignment
+#if defined(__GNUC__)
+#define ALIGNED __attribute__((aligned(4)))
+#elif defined(_MSC_VER)
+#define ALIGNED __declspec(align(4))
+#else
+#define ALIGNED
+#endif
+
 // .data
 // TODO: this is weird, why not call directly when needed?
 const ns_subsystem subsys[21] = {
@@ -77,14 +86,46 @@ extern gl_context context;
 
 void CoreLoop(lid_t lid);
 
-// (80011D88)
-int main() {
+int original_main();
+
+// Wrap the original main function to enforce alignment
+int main(int argc, char *argv[]) {
+// Force stack alignment to 4 bytes
+// #ifdef __GNUC__
+//     __asm__("andl $-4, %esp");
+// #endif
+
+// Force heap allocations to be 4-byte aligned
+#if defined(_WIN32) || defined(_WIN64)
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF);
+#endif
+
+// Set alignment requirements for dynamic memory
+#if defined(__linux__) || defined(__unix__)
+    mallopt(M_ALIGNMENT, 4);
+#endif
+
+    // Run the original main with alignment enforced
+    return original_main();
+}
+
+// Original main function renamed
+int original_main() {
     // use_cd = 0;
     init();
     CoreLoop(LID_BOOTLEVEL);
     _kill();
     return 0;
 }
+
+// // (80011D88)
+// int main() {
+//     // use_cd = 0;
+//     init();
+//     CoreLoop(LID_BOOTLEVEL);
+//     _kill();
+//     return 0;
+// }
 
 // (80011DD0)
 void CoreObjectsCreate() {

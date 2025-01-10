@@ -7,8 +7,8 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BASEPATH "${CMAKE_SOURCE_DIR}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g3 -O0 -Wno-error=address -Wno-pointer-to-int-cast")
-
-add_definitions(-DCFLAGS_GFX_SW_PERSP -DCFLAGS_DRAW_EXTENSIONS -DCFLAGS_GOOL_DEBUG)
+# add_definitions(-DCFLAGS_GFX_SW_PERSP -DCFLAGS_DRAW_EXTENSIONS -DCFLAGS_GOOL_DEBUG)
+add_definitions(-DCFLAGS_GFX_SW_PERSP -DCFLAGS_DRAW_EXTENSIONS)
 
 project(c1)
 
@@ -23,7 +23,8 @@ pkg_check_modules(GLIB REQUIRED glib-2.0)
 include_directories(${GLIB_INCLUDE_DIRS})
 link_directories(${GLIB_LIBRARY_DIRS})
 
-set(SRC_FILES src/ns.c
+set(SRC_FILES src/ptr.c
+    src/ns.c
     src/pad.c
     src/math.c
     src/audio.c
@@ -67,5 +68,10 @@ target_link_libraries(c1
 target_link_libraries(c1 PRIVATE GLEW::GLEW)
 target_link_libraries(c1 PRIVATE FluidSynth::libfluidsynth)
 target_link_libraries(c1 PRIVATE ${GLIB_LIBRARIES})
+
+set_target_properties(c1
+  PROPERTIES
+  OSX_ARCHITECTURES "arm64"
+)
 
 add_custom_command(OUTPUT result COMMAND FluidSynth::fluidsynth ARGS ...)

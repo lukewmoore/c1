@@ -1,6 +1,28 @@
 #pragma once
 
 #include "common.h"
+#include "ptr.h"
+
+#define NS_POINTER_TO_OFFSET_FIELD(type, name) \
+    int32_t name##_compat_offset // type
+
+#define NS_OFFSET_TO_POINTER(ptr, type, name) \
+    (type *)((uint8_t *)ptr + ptr->name##_compat_offset)
+
+#define NS_POINTER_TO_OFFSET(parent_ptr, ptr, name) \
+    parent_ptr->name##_compat_offset = (int32_t)((uint8_t *)(ptr) - (uint8_t *)(parent_ptr)) // type
+
+#define NS_POINTER_TO_OFFSET_FIELD_ARRAY(type, name, length) \
+    int32_t name##_compat_offset[length] // type
+
+#define NS_OFFSET_TO_POINTER_ARRAY(ptr, type, name, index) \
+    (type *)((uint8_t *)ptr + ptr->name##_compat_offset[index])
+
+#define NS_POINTER_TO_OFFSET_ARRAY(parent_ptr, ptr, name, index) \
+    parent_ptr->name##_compat_offset[index] = (int32_t)((uint8_t *)(ptr) - (uint8_t *)(parent_ptr))
+
+#define NS_OFFSET_NAME(ptr, name) \
+    ptr->name##_compat_offset
 
 // eid
 #define EID_NONE 0x6396347F
@@ -91,11 +113,12 @@ typedef struct nsd_ldat {
 #define NSD_PTB_COUNT 256
 
 // note: pte is read from page table
-typedef struct {
+typedef struct nsd_pte {
     union {
         pgid_t pgid;
         // entry *entry; originally this union is replaced with a pointer to the entry
-        int32_t entry_offset; // now we use an offset to the entry instead for relative 32 bit addressing
+        // NS_POINTER_TO_OFFSET_FIELD(entry, entry);
+        ptr_handle_t entry_handle;
         uint32_t value;
     };
     union {
@@ -104,6 +127,7 @@ typedef struct {
     };
 } nsd_pte;
 
+// TODO: do the pointers here need to go?
 typedef struct nsd {
     union {
         uint32_t ptb_offsets[NSD_PTB_COUNT];
@@ -206,7 +230,7 @@ typedef union {
     eid_t eid;
     // ref->is_entry == (!ref->is_eid && !ref->is_value && ref->en->magic == MAGIC_ENTRY)
     // struct entry *en;
-    int32_t en_offset;
+    ptr_handle_t en_handle;
     struct {
         uint32_t is_eid : 1;
         uint32_t is_value : 1;
@@ -216,9 +240,10 @@ typedef union {
     };
     uint32_t value;
     // nsd_pte *pte;
-    int32_t pte_offset;
+    ptr_handle_t pte_handle;
 } entry_ref;
 
+// Unused???
 typedef union {
     struct entry *en;
     nsd_pte pte;

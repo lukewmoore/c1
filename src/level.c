@@ -583,10 +583,15 @@ void LevelRestart(level_state *state) {
     crash->process.vectors.velocity.z = 0;
     crash->process.speed = 0;
     crash->process.vectors.target_rot.x = crash->process.vectors.rot.x;
-    if ((collider = crash->process.links[6])) {
+    // if ((collider = crash->process.links[6])) {
+    //     // TODO: no idea, reflection???
+    //     collider = 0;
+    //     crash->process.links[6] = 0;
+    // }
+    if ((collider = get_gool_object(crash->process.links_handle[6]))) {
         // TODO: no idea, reflection???
         collider = 0;
-        crash->process.links[6] = 0;
+        crash->process.links_handle[6] = 0;
     }
     draw_count = 0;
     screen_shake = 0;
@@ -1176,7 +1181,8 @@ gool_objnode ZoneFindNearestObjectNode(gool_object *obj, vec *v) {
             && bound->obj->bound.p1.z - 20000 <= va.z && va.z <= bound->obj->bound.p2.z + 20000) {
             if (bound->obj->bound.p1.y <= va.y && va.y <= bound->obj->bound.p2.y) { /* collides with va? */
                 v->y = bound->obj->bound.p2.y;                                      /* replace with top (bottom?) bound y location */
-                res.obj = bound->obj;
+                // res.obj = bound->obj;
+                res.obj_handle = store_gool_object(bound->obj);
                 return res; /* return the obj */
             } else if (bound->obj->bound.p2.y > y_max && va.y >= bound->obj->bound.p2.y) {
                 /* keep track of highest object below va */
@@ -1189,7 +1195,8 @@ gool_objnode ZoneFindNearestObjectNode(gool_object *obj, vec *v) {
         /* found a highest below obj */
         /* and no node or max object y is nearer to va? */
         v->y = y_max;        /* replace with max object y */
-        res.obj = found_max; /* put max object in the result */
+        // res.obj = found_max; /* put max object in the result */
+        res.obj_handle = store_gool_object(found_max);
     }
     return res; /* return; either obj or node */
 }
@@ -1253,7 +1260,8 @@ gool_objnode ZoneFindNearestObjectNode2(gool_object *obj, vec *v) {
         }
         if (va.x >= bound->obj->bound.p1.x - 35000 && va.x <= bound->obj->bound.p2.x + 35000 && va.z >= bound->obj->bound.p1.z - 35000 && va.z <= bound->obj->bound.p2.z + 35000) {
             if (va.y >= bound->obj->bound.p1.y && va.y <= bound->obj->bound.p2.y) {
-                res.obj = bound->obj;
+                // res.obj = bound->obj;
+                res.obj_handle = store_gool_object(bound->obj);
                 va.y = bound->obj->bound.p1.y;
                 found = 1;
                 break;
@@ -1264,22 +1272,28 @@ gool_objnode ZoneFindNearestObjectNode2(gool_object *obj, vec *v) {
             }
         }
     }
-    if (found_max && (!res.obj || y_max >= va.y)) {
+    // if (found_max && (!res.obj || y_max >= va.y)) {
+    if (found_max && (!get_gool_object(res.obj_handle) || y_max >= va.y)) {
         /* found a highest below obj */
         /* and no node or max object y is nearer to va? */
         v->y = y_max;        /* replace with max object y */
-        res.obj = found_max; /* put max object in the result */
+        // res.obj = found_max; /* put max object in the result */
+        res.obj_handle = store_gool_object(found_max);
     }
     if (!res.value) { /* has nothing been found? */
-        sub_80027A08(obj->process.links[1], -1, 0);
+        // sub_80027A08(obj->process.links[1], -1, 0);
+        sub_80027A08(get_gool_object(obj->process.links_handle[1]), -1, 0);
     } else if (found) { /* has an object been found? */
-        size = res.obj->process.size;
+        // size = res.obj->process.size;
+        size = get_gool_object(res.obj_handle)->process.size;
         if (obj->process.vectors.trans.y > cam_trans.y) {
             size -= (obj->process.vectors.trans.y - cam_trans.y) >> 12;
         }
-        sub_80027A08(obj->process.links[1], -1, size);
+        // sub_80027A08(obj->process.links[1], -1, size);
+        sub_80027A08(get_gool_object(obj->process.links_handle[1]), -1, size);
     } else { /* a node was found */
-        sub_80027A08(obj->process.links[1], (res.node & 0x3C00) >> 10, 0);
+        // sub_80027A08(obj->process.links[1], (res.node & 0x3C00) >> 10, 0);
+        sub_80027A08(get_gool_object(obj->process.links_handle[1]), (res.node & 0x3C00) >> 10, 0);
     }
     return res; /* gool object or node */
 }
@@ -1299,7 +1313,8 @@ gool_objnode ZoneFindNearestObjectNode3(gool_object *obj, vec *v, int flags, int
     int i, yz_max, found, subtype;
 
     res.value = 0;
-    if (!(obj->process.status_b & 0x4000000) || ((flags & 4) && !(obj->process.links[1]->process.status_b & 0x4000000))) {
+    // if (!(obj->process.status_b & 0x4000000) || ((flags & 4) && !(obj->process.links[1]->process.status_b & 0x4000000))) {
+    if (!(obj->process.status_b & 0x4000000) || ((flags & 4) && !(get_gool_object(obj->process.links_handle[1])->process.status_b & 0x4000000))) {
         return res;
     }
     yz_max = -999999999;
@@ -1347,7 +1362,8 @@ gool_objnode ZoneFindNearestObjectNode3(gool_object *obj, vec *v, int flags, int
         if (flags & 1) {
             if (va.x >= bound->obj->bound.p1.x && va.x <= bound->obj->bound.p2.x && va.z >= bound->obj->bound.p1.z && va.z <= bound->obj->bound.p2.z) {
                 if (va.y >= bound->obj->bound.p1.y && va.y <= bound->obj->bound.p2.y) {
-                    res.obj = bound->obj;
+                    // res.obj = bound->obj;
+                    res.obj_handle = store_gool_object(bound->obj);
                     va.y = bound->obj->bound.p1.y;
                     found = 1;
                     break;
@@ -1360,7 +1376,8 @@ gool_objnode ZoneFindNearestObjectNode3(gool_object *obj, vec *v, int flags, int
         } else if (flags & 2) {
             if (va.x >= bound->obj->bound.p1.x && va.x <= bound->obj->bound.p2.x && va.y >= bound->obj->bound.p1.y && va.y <= bound->obj->bound.p2.y) {
                 if (va.z >= bound->obj->bound.p1.z && va.z < bound->obj->bound.p2.z) {
-                    res.obj = bound->obj;
+                    // res.obj = bound->obj;
+                    res.obj_handle = store_gool_object(bound->obj);
                     va.z = bound->obj->bound.p1.z;
                     found = 1;
                     break;
@@ -1375,25 +1392,31 @@ gool_objnode ZoneFindNearestObjectNode3(gool_object *obj, vec *v, int flags, int
     }
     if (!found && found_max) { /* a highest below or nearest z-wise object found? */
         if (flags & 1) {
-            if (!res.obj || yz_max >= va.y) { /* no collider found or max object y is nearer to va? */
-                res.obj = found_max;
+            // if (!res.obj || yz_max >= va.y) { /* no collider found or max object y is nearer to va? */
+            if (!get_gool_object(res.obj_handle) || yz_max >= va.y) { /* no collider found or max object y is nearer to va? */
+                // res.obj = found_max;
+                res.obj_handle = store_gool_object(found_max);
                 va.y = yz_max; /* use the max object y as it is nearest to va */
                 found = 1;
             }
         } else if (flags & 2) {
-            if (!res.obj || yz_max >= va.z) { /* no collider found or max object z is nearer to va? */
-                res.obj = found_max;
+            // if (!res.obj || yz_max >= va.z) { /* no collider found or max object z is nearer to va? */
+            if (!get_gool_object(res.obj_handle) || yz_max >= va.z) { /* no collider found or max object z is nearer to va? */
+                // res.obj = found_max;
+                res.obj_handle = store_gool_object(found_max);
                 va.z = yz_max; /* use the max object z as it is nearest to va */
                 found = 1;
             }
         }
     }
     if (flags & 4) {
-        header = (zone_header *)GetEntryItem(GetGoolObjectZone(obj->process.links[1]), 0);
+        // header = (zone_header *)GetEntryItem(GetGoolObjectZone(obj->process.links[1]), 0);
+        header = (zone_header *)GetEntryItem(GetGoolObjectZone(get_gool_object(obj->process.links_handle[1])), 0);
     } else {
         header = (zone_header *)GetEntryItem(GetGoolObjectZone(obj), 0);
     }
-    if (obj == crash || obj->process.links[1] == crash) {
+    // if (obj == crash || obj->process.links[1] == crash) {
+    if (obj == crash || get_gool_object(obj->process.links_handle[1]) == crash) {
         colors = &header->gfx.player_colors;
     } else {
         colors = &header->gfx.object_colors;
@@ -1401,7 +1424,8 @@ gool_objnode ZoneFindNearestObjectNode3(gool_object *obj, vec *v, int flags, int
     if (!res.value) { /* has nothing been found? */
         subtype = -1;
     } else if (found) {                  /* has an object been found? */
-        subtype = res.obj->process.node; /* get node subtype from the object */
+        // subtype = res.obj->process.node; /* get node subtype from the object */
+        subtype = get_gool_object(res.obj_handle)->process.node;
         if (subtype < 0) {               /* subtype is negative? ('no seek' bit set) */
             flag = 0;                    /* clear the seek flag */
             subtype = -subtype;          /* clear the 'no seek' bit */
@@ -1415,7 +1439,8 @@ gool_objnode ZoneFindNearestObjectNode3(gool_object *obj, vec *v, int flags, int
     if (flags & 4) {
         /* seek parent object colors towards zone colors
            scaled per the node value */
-        ZoneColorsScaleSeek(colors, obj->process.links[1], subtype, flag);
+        // ZoneColorsScaleSeek(colors, obj->process.links[1], subtype, flag);
+        ZoneColorsScaleSeek(colors, get_gool_object(obj->process.links_handle[1]), subtype, flag);
     }
     return res; /* gool object or node */
 }
@@ -1427,16 +1452,19 @@ void ZoneColorsScaleSeekByEntityNode(gool_object *obj) {
     int16_t node;
     int subtype;
 
-    if (!obj->process.entity) {
+    // if (!obj->process.entity) {
+    if (!get_zone_entity(obj->process.entity_handle)) {
         return;
     }
     header = (zone_header *)GetEntryItem(GetGoolObjectZone(obj), 0);
-    if (obj == crash || obj->process.links[1] == crash) {
+    // if (obj == crash || obj->process.links[1] == crash) {
+    if (obj == crash || get_gool_object(obj->process.links_handle[1]) == crash) {
         colors = &header->gfx.player_colors;
     } else {
         colors = &header->gfx.object_colors;
     }
-    node = (int16_t)((obj->process.entity->spawn_flags) >> 3);
+    // node = (int16_t)((obj->process.entity->spawn_flags) >> 3);
+    node = (int16_t)((get_zone_entity(obj->process.entity_handle)->spawn_flags) >> 3);
     if (node != -1) {
         subtype = (node & 0x3F0) >> 4;
         if (subtype < 39) {

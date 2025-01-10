@@ -35,48 +35,64 @@ void GoolObjectPrintDebug(gool_object *, FILE *);
 #define init_obj player
 #define main_obj crash
 
-#define GETRFP(obj) (!obj->process.fp) ? 0 : ((uint32_t)obj->process.fp - (uint32_t) & obj->process)
-#define GETRSP(obj) (!obj->process.sp) ? 0 : ((uint32_t)obj->process.sp - (uint32_t) & obj->process)
+// #define GETRFP(obj) (!obj->process.fp) ? 0 : ((uint32_t)obj->process.fp - (uint32_t) & obj->process)
+// #define GETRSP(obj) (!obj->process.sp) ? 0 : ((uint32_t)obj->process.sp - (uint32_t) & obj->process)
+#define GETRFP(obj) (!get_int_ptr(obj->process.fp_handle)) ? 0 : ((uint32_t)get_int_ptr(obj->process.fp_handle) - (uint32_t) & obj->process)
+#define GETRSP(obj) (!get_int_ptr(obj->process.sp_handle)) ? 0 : ((uint32_t)get_int_ptr(obj->process.sp_handle) - (uint32_t) & obj->process)
 
 entry *GetGoolObjectGlobal(gool_object *obj) {
-    return (struct entry *)((uint8_t *)obj - obj->global_offset);
-}
-
-entry *GetGoolObjectExternal(gool_object *obj) {
-    return (struct entry *)((uint8_t *)obj - obj->external_offset);
-}
-
-entry *GetGoolObjectZone(gool_object *obj) {
-    return (struct entry *)((uint8_t *)obj - obj->zone_offset);
+    // return (struct entry *)((uint8_t *)obj - obj->global_offset);
+    return get_entry(obj->global_handle);
 }
 
 void SetGoolObjectGlobal(gool_object *obj, entry *entry) {
-    obj->global_offset = (uint32_t)((uint8_t *)obj - (uint8_t *)entry);
+    // obj->global_offset = (uint32_t)((uint8_t *)obj - (uint8_t *)entry);
+    obj->global_handle = store_entry(entry);
+}
+
+entry *GetGoolObjectExternal(gool_object *obj) {
+    // return (struct entry *)((uint8_t *)obj - obj->external_offset);
+    return get_entry(obj->external_handle);
 }
 
 void SetGoolObjectExternal(gool_object *obj, entry *entry) {
-    obj->external_offset = (uint32_t)((uint8_t *)obj - (uint8_t *)entry);
+    // obj->external_offset = (uint32_t)((uint8_t *)obj - (uint8_t *)entry);
+    obj->external_handle = store_entry(entry);
+}
+
+entry *GetGoolObjectZone(gool_object *obj) {
+    // return (struct entry *)((uint8_t *)obj - obj->zone_offset);
+    return get_entry(obj->zone_handle);
 }
 
 void SetGoolObjectZone(gool_object *obj, entry *entry) {
-    obj->zone_offset = (uint32_t)((uint8_t *)obj - (uint8_t *)entry);
+    // obj->zone_offset = (uint32_t)((uint8_t *)obj - (uint8_t *)entry);
+    obj->zone_handle = store_entry(entry);
 }
 
 static inline void GoolObjectPush(gool_object *obj, uint32_t value) {
-    *(obj->process.sp++) = value;
+    // *(obj->process.sp++) = value;
+    uint32_t *sp = get_int_ptr(obj->process.sp_handle);
+    *(sp++) = value;
+    obj->process.sp_handle = replace_generic(sp, obj->process.sp_handle);
 }
 static inline uint32_t GoolObjectPop(gool_object *obj) {
-    return *(--obj->process.sp);
+    // return *(--obj->process.sp);
+    uint32_t *sp = get_int_ptr(obj->process.sp_handle);
+    --sp;
+    obj->process.sp_handle = replace_generic(sp, obj->process.sp_handle);
+    return *sp;
 }
 static inline uint32_t GoolObjectPeek(gool_object *obj) {
-    return *obj->process.sp;
+    // return *obj->process.sp;
+    return *(get_int_ptr(obj->process.sp_handle));
 }
 static inline gool_object *GoolObjectPrevChild(gool_object *obj, gool_object *child) {
     gool_object *cur;
 
     cur = GoolObjectGetChildren(obj);
-    while (cur && cur->process.links[2] != child) {
-        cur = cur->process.links[2];
+    while (cur && get_gool_object(cur->process.links_handle[2]) != child) {
+        cur = get_gool_object(cur->process.links_handle[2]);
     }
     return cur;
 }
@@ -88,17 +104,25 @@ static inline void GoolObjectRemoveChild(gool_object *obj, gool_object *child) {
         return;
     }
     if (child == first) {
-        GoolObjectSetChildren(obj, child->process.links[2]);
-    } else if (prev = GoolObjectPrevChild(obj, child)) {
-        prev->process.links[2] = child->process.links[2];
+        GoolObjectSetChildren(obj, get_gool_object(child->process.links_handle[2]));
+    } else if ((prev = GoolObjectPrevChild(obj, child))) {
+        // prev->process.links[2] = child->process.links[2];
+        prev->process.links_handle[2] = child->process.links_handle[2];
     }
 }
 static inline void GoolObjectAddChild(gool_object *obj, gool_object *child) {
-    if (child->process.links[1]) {
-        GoolObjectRemoveChild(child->process.links[1], child);
+    // if (child->process.links[1]) {
+    gool_object *parent = get_gool_object(child->process.links_handle[1]);
+    if (parent) {
+        // GoolObjectRemoveChild(child->process.links[1], child);
+        GoolObjectRemoveChild(parent, child);
     }
-    child->process.links[1] = obj;
-    child->process.links[2] = GoolObjectGetChildren(obj);
+    // child->process.links[1] = obj;
+    // child->process.links[2] = GoolObjectGetChildren(obj);
+    // Add parent
+    child->process.links_handle[1] = store_gool_object(obj);
+    // Add sibling
+    child->process.links_handle[2] = store_gool_object(GoolObjectGetChildren(obj));
     GoolObjectSetChildren(obj, child);
 }
 
@@ -200,27 +224,36 @@ int GoolInitAllocTable() {
     cur_obj = 0;
     frames_elapsed = 0;
     free_objects.type = 2;
-    free_objects.children = objects;
+    // free_objects.children = objects;
+    free_objects.children_handle = store_gool_object(objects);
     for (i = 0; i < GOOL_OBJECT_COUNT; i++) {
         obj = &objects[i];
         obj->handle.type = 0;
-        obj->process.links[1] = (gool_object *)&free_objects;
-        obj->process.links[3] = 0;
+        // obj->process.links[1] = (gool_object *)&free_objects;
+        // obj->process.links[3] = 0;
+        obj->process.links_handle[1] = store_gool_object((gool_object *)&free_objects);
+        obj->process.links_handle[3] = 0;
         if (i < (GOOL_OBJECT_COUNT - 1)) {
-            obj->process.links[2] = &objects[i + 1];
+            // obj->process.links[2] = &objects[i + 1];
+            obj->process.links_handle[2] = store_gool_object(&objects[i + 1]);
         } else {
-            obj->process.links[2] = 0;
+            // obj->process.links[2] = 0;
+            obj->process.links_handle[2] = 0;
         }
     }
     handle = handles;
     for (i = 0; i < 8; i++, handle++) {
         handle->type = 2;
-        handle->children = 0;
+        // handle->children = 0;
+        handle->children_handle = store_gool_object(0);
     }
     player->handle.type = 0;
-    player->process.links[1] = 0;
-    player->process.links[2] = 0;
-    player->process.links[3] = 0;
+    // player->process.links[1] = 0;
+    // player->process.links[2] = 0;
+    // player->process.links[3] = 0;
+    player->process.links_handle[1] = 0;
+    player->process.links_handle[2] = 0;
+    player->process.links_handle[3] = 0;
     return SUCCESS;
 }
 
@@ -253,7 +286,8 @@ int GoolObjectOrientOnPath(gool_object *obj, int progress, vec *loc) {
     uint32_t dist_xz;
     int32_t x, z, proj, proj_part;
 
-    entity = obj->process.entity;
+    // entity = obj->process.entity;
+    entity = get_zone_entity(obj->process.entity_handle);
     if (!obj || !entity) {
         return ERROR;
     }
@@ -406,12 +440,14 @@ int GoolObjectTraverseTreePreorder(
         GoolObjectKill(obj, 0);
         return ERROR_INVALID_RETURN;
     }
-    child = obj->process.links[3];
+    // child = obj->process.links[3];
+    child = get_gool_object(obj->process.links_handle[3]);
     while (child) {
         if (ISFREEOBJECT(child)) {
             break;
         }
-        sibling = child->process.links[2];
+        // sibling = child->process.links[2];
+        sibling = get_gool_object(child->process.links_handle[2]);
         GoolObjectTraverseTreePreorder(child, func, arg);
         child = sibling;
     }
@@ -427,9 +463,11 @@ int GoolObjectTraverseTreePostorder(
     gool_object *sibling; // $s0
     int res;              // $v0
 
-    child = obj->process.links[3];
+    // child = obj->process.links[3];
+    child = get_gool_object(obj->process.links_handle[3]);
     while (child) {
-        sibling = child->process.links[2];
+        // sibling = child->process.links[2];
+        sibling = get_gool_object(child->process.links_handle[2]);
         res = GoolObjectTraverseTreePostorder(child, func, arg);
         child = sibling;
         if (res == ERROR_INVALID_RETURN) {
@@ -462,7 +500,8 @@ int GoolObjectSearchTree(
         return 0;
     }
     while (!res && child) {
-        sibling = child->process.links[2];
+        // sibling = child->process.links[2];
+        sibling = get_gool_object(child->process.links_handle[2]);
         res = GoolObjectSearchTree(child, func, arg);
         child = sibling;
     }
@@ -480,17 +519,20 @@ int GoolObjectHandleTraverseTreePreorder(
 
     child = GoolObjectGetChildren(obj);
     while (child) {
-        sibling = child->process.links[2];
+        // sibling = child->process.links[2];
+        sibling = get_gool_object(child->process.links_handle[2]);
         res = func(child, arg);
         if (res == ERROR_INVALID_RETURN) {
             GoolObjectKill(child, 0);
         } else {
-            grandchild = child->process.links[3];
+            // grandchild = child->process.links[3];
+            grandchild = get_gool_object(child->process.links_handle[3]);
             while (grandchild) {
                 if (ISFREEOBJECT(grandchild)) {
                     break;
                 }
-                next_grandchild = grandchild->process.links[2];
+                // next_grandchild = grandchild->process.links[2];
+                next_grandchild = get_gool_object(grandchild->process.links_handle[2]);
                 GoolObjectTraverseTreePreorder(grandchild, func, arg);
                 grandchild = next_grandchild;
             }
@@ -511,11 +553,14 @@ int GoolObjectHandleTraverseTreePostorder(
 
     child = GoolObjectGetChildren(obj);
     while (child) {
-        grandchild = child->process.links[3];
-        sibling = child->process.links[2];
+        // grandchild = child->process.links[3];
+        grandchild = get_gool_object(child->process.links_handle[3]);
+        // sibling = child->process.links[2];
+        sibling = get_gool_object(child->process.links_handle[2]);
         /* TODO: verify-should there be an else block somewhere here */
         while (grandchild) {
-            next_grandchild = grandchild->process.links[2];
+            // next_grandchild = grandchild->process.links[2];
+            next_grandchild = get_gool_object(grandchild->process.links_handle[2]);
             res = GoolObjectTraverseTreePostorder(grandchild, func, arg);
             if (res == ERROR_INVALID_RETURN) {
                 GoolObjectKill(child, 0);
@@ -593,7 +638,8 @@ int GoolFindNearestObject(gool_object *obj, gool_nearest_query *query) {
     if (state_idx & 0x8000) {
         if (query->event == GOOL_EVENT_STATUS) { /* querying for status? */
             arg = 0x100;
-            obj->process.links[7] = query->obj;
+            // obj->process.links[7] = query->obj;
+            obj->process.links_handle[7] = store_gool_object(query->obj);
             GoolObjectInterrupt(obj, state_idx, 1, &arg); /* interrupt the object */
             if (obj->process.ack) {                       /* request acknowledged? */
                 query->nearest_obj = obj;                 /* set as new nearest obj */
@@ -640,12 +686,14 @@ static inline gool_object *GoolObjectAlloc(int flag) {
         } else if (flag) {   /* term flag set? (and no free objects available) */
             handle = &handles[3];
             if (ISHANDLE(handle)) {
-                target = handle->children;
+                // target = handle->children;
+                target = get_gool_object(handle->children_handle);
             } else if (GoolObjectTestStateFlags((gool_object *)handle, 0x80000)) {
                 target = GoolObjectGetChildren(handle);
             }
             found = 0;
-            for (cur = target; cur && !found; cur = cur->process.links[2]) {
+            // for (cur = target; cur && !found; cur = cur->process.links[2]) {
+            for (cur = target; cur && !found; cur = get_gool_object(cur->process.links_handle[2])) {
                 found = (gool_object *)GoolObjectSearchTree(
                     cur,
                     (gool_ifnptr_t)GoolObjectTestStateFlags,
@@ -737,7 +785,8 @@ gool_object *GoolObjectSpawn(entry *zone, int entity_idx) {
     header = (zone_header *)GetEntryItem(zone, 0);
     colors = is_main ? &header->gfx.player_colors : &header->gfx.object_colors;
     obj->colors = *colors;
-    obj->process.entity = entity;
+    // obj->process.entity = entity;
+    obj->process.entity_handle = store_zone_entity(entity);
     obj->process.path_length = entity->path_length << 8;
     if (!(entity->spawn_flags & 1)) { /* has rot initializer? */
         obj->process.vectors.rot.y = entity->rot.y;
@@ -760,12 +809,17 @@ gool_object *GoolObjectSpawn(entry *zone, int entity_idx) {
     if (g_header->type == 0x22) { /* box type entity? */
         if (near_box) {           /* is there a nearby box? */
             /* append cur to doubly linked box list with prev as its tail */
-            obj->process.vectors.box_link.prev = near_box;
-            obj->process.vectors.box_link.next = 0;
-            near_box->process.vectors.box_link.next = obj;
+            // obj->process.vectors.box_link.prev = near_box;
+            // obj->process.vectors.box_link.next = 0;
+            obj->process.vectors.box_link.prev_handle = store_gool_object(near_box);
+            obj->process.vectors.box_link.next_handle = store_gool_object(0);
+            // near_box->process.vectors.box_link.next = obj;
+            near_box->process.vectors.box_link.next_handle = store_gool_object(obj);
         } else {
-            obj->process.vectors.box_link.prev = 0;
-            obj->process.vectors.box_link.next = 0;
+            // obj->process.vectors.box_link.prev = 0;
+            // obj->process.vectors.box_link.next = 0;
+            obj->process.vectors.box_link.prev_handle = store_gool_object(0);
+            obj->process.vectors.box_link.next_handle = store_gool_object(0);
         }
         obj->process.vectors.trans.y += (0x19000 - boxes_y);
         prev_box = obj;
@@ -803,10 +857,10 @@ gool_object *GoolObjectCreate(void *parent, int exec, int subtype, int argc, uin
     // zone = child->zone ? child->zone : cur_zone;
 
     // TODO: make sure child zone is correctly validated
-    if (child->zone_offset == 0) {
-        zone = cur_zone;
-    } else {
+    if (get_entry(child->zone_handle)) {
         zone = GetGoolObjectZone(child);
+    } else {
+        zone = cur_zone;
     }
 
     header = (zone_header *)GetEntryItem(zone, 0);
@@ -824,10 +878,12 @@ int GoolObjectInit(gool_object *obj, int exec, int subtype, int argc, int *argv)
     eid_t *p_eid;
     int idx, idx_states, state, res; // ?, ?, $a1
 
-    parent = obj->process.links[1];
+    // parent = obj->process.links[1];
+    parent = get_gool_object(obj->process.links_handle[1]);
     obj->process.node = 0xFFFF;
     obj->process.pid_flags = 0;
-    obj->process.entity = 0;
+    // obj->process.entity = 0;
+    obj->process.entity_handle = store_zone_entity(0);
     obj->process.path_progress = 0;
     obj->process.path_length = 0;
     obj->handle.type = 1;
@@ -861,7 +917,7 @@ int GoolObjectInit(gool_object *obj, int exec, int subtype, int argc, int *argv)
     } else {
         vectors = &obj->process.vectors;
         // obj->zone = 0;
-        obj->zone_offset = 0;
+        obj->zone_handle = store_entry(0);
         obj->process.vectors.rot.y = 0;
         obj->process.vectors.rot.x = 0;
         obj->process.vectors.rot.z = 0;
@@ -872,7 +928,7 @@ int GoolObjectInit(gool_object *obj, int exec, int subtype, int argc, int *argv)
     p_eid = &ns.ldat->exec_map[exec];
     if (exec == 4 || exec == 5 || exec == 29) {
         // obj->zone = 0;
-        obj->zone_offset = 0;
+        obj->zone_handle = store_entry(0);
     }
     if (exec == 0) {
         obj->process.cam_zoom = 0;
@@ -887,18 +943,26 @@ int GoolObjectInit(gool_object *obj, int exec, int subtype, int argc, int *argv)
     if (ISERRORCODE(global)) {
         return ERROR;
     }
-    obj->process.links[0] = obj;
-    obj->process.links[6] = 0;
-    obj->process.links[4] = 0;
-    obj->process.links[7] = 0;
+    // obj->process.links[0] = obj;
+    // obj->process.links[6] = 0;
+    // obj->process.links[4] = 0;
+    // obj->process.links[7] = 0;
+    obj->process.links_handle[0] = store_gool_object(obj);
+    obj->process.links_handle[6] = 0;
+    obj->process.links_handle[4] = 0;
+    obj->process.links_handle[7] = 0;
 
     // global = obj->global;
     global = GetGoolObjectGlobal(obj);
 
     obj->process.subtype = subtype;
-    obj->process.anim_seq = 0;
-    obj->process.once_p = 0;
-    obj->process.links[5] = player;
+    // obj->process.anim_seq = 0;
+    obj->process.anim_seq_handle = store_generic(0);
+
+    // obj->process.once_p = 0;
+    obj->process.once_p_handle = store_generic(0);
+    // obj->process.links[5] = player;
+    obj->process.links_handle[5] = store_gool_object(player);
     header = (gool_header *)GetEntryItem(global, 0);
     maps = (gool_state_maps *)GetEntryItem(global, 3);
     idx_states = header->subtype_map_idx;
@@ -931,7 +995,8 @@ int GoolObjectKill(gool_object *obj, int sig) {
     }
     child = GoolObjectGetChildren(obj);
     while (child) { /* terminate descendants */
-        next = child->process.links[2];
+        // next = child->process.links[2];
+        next = get_gool_object(child->process.links_handle[2]);
         GoolObjectKill(child, sig);
         child = next;
     }
@@ -943,9 +1008,12 @@ int GoolObjectKill(gool_object *obj, int sig) {
         children = GoolObjectGetChildren(&free_objects);
         GoolObjectAddChild((gool_object *)&free_objects, obj);
         GoolObjectSetChildren(&free_objects, children);
-        player->process.links[1] = 0;
-        player->process.links[3] = 0;
-        player->process.links[2] = 0;
+        // player->process.links[1] = 0;
+        // player->process.links[3] = 0;
+        // player->process.links[2] = 0;
+        player->process.links_handle[1] = 0;
+        player->process.links_handle[3] = 0;
+        player->process.links_handle[2] = 0;
         crash = 0;
     } else {
         GoolObjectAddChild((gool_object *)&free_objects, obj); /* return to free list */
@@ -1014,10 +1082,12 @@ void GoolObjectLocalBound(gool_object *obj, vec *scale) {
     bound bnd;
     int res, frame_idx;
 
-    if (!obj->process.anim_seq) {
+    // if (!obj->process.anim_seq) {
+    if (!get_int_ptr(obj->process.anim_seq_handle)) {
         return;
     }
-    anim = obj->process.anim_seq;
+    // anim = obj->process.anim_seq;
+    anim = (gool_anim *)get_generic(obj->process.anim_seq_handle);
     /* below section unnecessary on pc and causes collision issues */
 #ifdef PSX
     if (anim->type != 4) {
@@ -1097,7 +1167,8 @@ int GoolObjectChangeState(gool_object *obj, uint32_t state, int argc, uint32_t *
     uint32_t *once_p; // $s3
     int i, res;       // ?, $v0
 
-    once_p = obj->process.once_p;
+    // once_p = obj->process.once_p;
+    once_p = get_int_ptr(obj->process.once_p_handle);
     if (state == 0xFF || (obj->process.status_b & GOOL_FLAG_STALL)) {
         return ERROR_INVALID_STATE;
     }
@@ -1113,23 +1184,34 @@ int GoolObjectChangeState(gool_object *obj, uint32_t state, int argc, uint32_t *
     SetGoolObjectExternal(obj, external);
     code = (uint32_t *)GetEntryItem(external, 1);
     if (state_desc->pc_code != 0x3FFF) {
-        obj->process.pc = &code[state_desc->pc_code];
+        // obj->process.pc = &code[state_desc->pc_code];
+        obj->process.pc_handle = store_generic(&code[state_desc->pc_code]);
     } else {
-        obj->process.pc = 0;
+        // obj->process.pc = 0;
+        obj->process.pc_handle = store_generic(0); // equivalent to null pointer
     }
     if (state_desc->pc_event != 0x3FFF) {
-        obj->process.ep = &code[state_desc->pc_event];
+        // obj->process.ep = &code[state_desc->pc_event];
+        obj->process.ep_handle = store_generic(&code[state_desc->pc_event]);
     } else {
-        obj->process.ep = 0;
+        // obj->process.ep = 0;
+        obj->process.ep_handle = store_generic(0); // equivalent to null pointer
     }
     if (state_desc->pc_trans != 0x3FFF) {
-        obj->process.tp = &code[state_desc->pc_trans];
+        // obj->process.tp = &code[state_desc->pc_trans];
+        obj->process.tp_handle = store_generic(&code[state_desc->pc_trans]);
     } else {
-        obj->process.tp = 0;
+        // obj->process.tp = 0;
+        obj->process.tp_handle = store_generic(0); // equivalent to null pointer
     }
     header = (gool_header *)GetEntryItem(exec, 0);
-    obj->process.fp = (uint32_t *)&obj->process;
-    obj->process.sp = (uint32_t *)&obj->process + header->init_sp;
+
+    // obj->process.fp = (uint32_t *)&obj->process;
+    // obj->process.sp = (uint32_t *)&obj->process + header->init_sp;
+    uint32_t *process_base = (uint32_t *)&obj->process;
+    obj->process.fp_handle = store_generic(process_base);
+    obj->process.sp_handle = store_generic(process_base + header->init_sp);
+
     obj->process.status_a |= GOOL_FLAG_FIRST_FRAME | GOOL_FLAG_KEEP_EVENT_STACK;
     obj->process.state_flags = state_desc->flags;
     for (i = 0; i < argc; i++) {
@@ -1138,7 +1220,8 @@ int GoolObjectChangeState(gool_object *obj, uint32_t state, int argc, uint32_t *
     GoolObjectPushFrame(obj, argc, 0xFFFF);
     if (once_p) { /* is there a once block? */
         GoolObjectPushFrame(obj, 0, 0xFFFF);
-        obj->process.pc = once_p;
+        // obj->process.pc = once_p;
+        obj->process.pc_handle = store_generic(once_p);
         flags = GOOL_FLAG_SUSPEND_ON_RET | GOOL_FLAG_SUSPEND_ON_RETLNK | GOOL_FLAG_STATUS_PRESERVE;
         res = GoolObjectInterpret(obj, flags, &transition);
         if (ISERRORCODE(res)) {
@@ -1148,9 +1231,11 @@ int GoolObjectChangeState(gool_object *obj, uint32_t state, int argc, uint32_t *
         GoolObjectPush(obj, 0);
     }
     obj->process.state_stamp = frames_elapsed;
-    if (obj->process.tp && obj == cur_obj) {
+    if (get_int_ptr(obj->process.tp_handle) && obj == cur_obj) {
         GoolObjectPushFrame(obj, 0, 0xFFFF);
-        obj->process.pc = obj->process.tp;
+        // obj->process.pc = obj->process.tp;
+        obj->process.pc_handle = obj->process.tp_handle;
+
         flags = GOOL_FLAG_SUSPEND_ON_RET | GOOL_FLAG_SUSPEND_ON_RETLNK;
         res = GoolObjectInterpret(obj, flags, &transition);
         if (ISERRORCODE(res)) {
@@ -1165,9 +1250,15 @@ int GoolObjectPushFrame(gool_object *obj, int argc, uint32_t flags) {
     uint16_t rsp, rfp;
     rsp = GETRSP(obj) - (argc * 4);
     rfp = GETRFP(obj);
-    obj->process.fp = obj->process.sp;
+
+    // obj->process.fp = obj->process.sp;
+    obj->process.fp_handle = obj->process.sp_handle;
+
     GoolObjectPush(obj, flags);
-    GoolObjectPush(obj, (uint32_t)obj->process.pc);
+
+    // GoolObjectPush(obj, (uint32_t)obj->process.pc);
+    GoolObjectPush(obj, (uint32_t)get_int_ptr(obj->process.pc_handle));
+
     GoolObjectPush(obj, (rfp << 16) | rsp);
     return SUCCESS;
 }
@@ -1179,22 +1270,27 @@ static int GoolObjectPopFrame(gool_object *obj, uint32_t *flags) {
     uint16_t rsp, rfp;
     uint16_t flags_prev;
 
-    obj->process.sp = obj->process.fp + 2;
+    // obj->process.sp = obj->process.fp + 2;
+    obj->process.sp_handle = store_generic(get_int_ptr(obj->process.fp_handle) + 2);
     range = GoolObjectPeek(obj);
-    rsp = range & 0xFFFF;
     rfp = range >> 16;
-    if (!rfp) {                      /* initial stack frame? */
-        return ERROR_INVALID_RETURN; /* return error */
+    if (!rfp) {
+        return ERROR_INVALID_RETURN; /* initial stack frame? */
     }
-    // GoolObjectPop(obj); /* pop range */
-    // obj->sp = obj->fp + ;
-    obj->process.pc = (uint32_t *)GoolObjectPop(obj); /* pop and restore pc to its previous location */
-    if (flags) {                                      /* out var passed for flags? */
+    rsp = range & 0xFFFF;
+    /* pop and restore pc to its previous location */
+    // obj->process.pc = (uint32_t *)GoolObjectPop(obj);
+    obj->process.pc_handle = store_generic((uint32_t *)GoolObjectPop(obj));
+    /* out var passed for flags? */
+    if (flags) {
         flags_prev = GoolObjectPop(obj);
-        *flags = (*flags & 0xFFFF0000) | flags_prev; /* restore previous value */
+        /* restore previous value */
+        *flags = (*flags & 0xFFFF0000) | flags_prev;
     }
-    obj->process.sp = (uint32_t *)((uint8_t *)&obj->process + rsp);
-    obj->process.fp = (uint32_t *)((uint8_t *)&obj->process + rfp);
+    // obj->process.sp = (uint32_t *)((uint8_t *)&obj->process + rsp);
+    // obj->process.fp = (uint32_t *)((uint8_t *)&obj->process + rfp);
+    obj->process.sp_handle = store_generic((uint32_t *)((uint8_t *)&obj->process + rsp));
+    obj->process.fp_handle = store_generic((uint32_t *)((uint8_t *)&obj->process + rfp));
     return SUCCESS;
 }
 
@@ -1275,17 +1371,18 @@ int GoolObjectUpdate(gool_object *obj, int flag) {
             }
 #ifdef CFLAGS_GOOL_DEBUG
             if (dbg->flags & GOOL_FLAG_PAUSED_TRANS) {
-            } else if (obj->process.tp) {
+            } else if (get_int_ptr(obj->process.tp_handle)) {
                 if (!(dbg->flags & GOOL_FLAG_RESTORED_TRANS)) { /* not resuming from trans block? */
                     GoolObjectPushFrame(obj, 0, 0xFFFF);
-                    obj->process.pc = obj->process.tp;
+                    // obj->process.pc = obj->process.tp;
+                    obj->process.pc_handle = obj->process.tp_handle;
                 } else {
                     dbg->flags &= ~GOOL_FLAG_RESTORED_TRANS;
                 }
 #else
-            if (obj->process.tp) { /* is there a trans block to run? */
+            if (get_int_ptr(obj->process.tp_handle)) { /* is there a trans block to run? */
                 GoolObjectPushFrame(obj, 0, 0xFFFF);
-                obj->process.pc = obj->process.tp;
+                obj->process.pc_handle = obj->process.tp_handle;
 #endif
                 flags = GOOL_FLAG_SUSPEND_ON_RET | GOOL_FLAG_SUSPEND_ON_RETLNK;
                 res = GoolObjectInterpret(obj, flags, &response); /* run it */
@@ -1293,28 +1390,36 @@ int GoolObjectUpdate(gool_object *obj, int flag) {
                     return res;
                 } /* return on fail */
             }
-            top = *(obj->process.sp - 1); /* peek back one from top */
+            // top = *(obj->process.sp - 1); /* peek back one from top */
+            top = *((get_int_ptr(obj->process.sp_handle)) - 1); /* peek back one from top */
+
             timestamp = top & 0x00FFFFFF;
             wait = (top & 0xFF000000) >> 24;
             elapsed_since = frames_elapsed - timestamp;
 #ifdef CFLAGS_GOOL_DEBUG
             if (dbg->flags & GOOL_FLAG_PAUSED_CODE) {
-            } else
+            } else {
 #endif
-                if (elapsed_since >= wait) {                                          /* if the required wait time (or more) has elapsed */
-                obj->process.sp--;                                                    /* get rid of the now useless tag */
-                res = GoolObjectInterpret(obj, GOOL_FLAG_SUSPEND_ON_ANIM, &response); /* ...and continue execution until another animation instruction is reached */
-                if (ISERRORCODE(res)) {
-                    return res;
-                } /* return on fail */
+                if (elapsed_since >= wait) { /* if the required wait time (or more) has elapsed */
+                    uint32_t *sp = get_int_ptr(obj->process.sp_handle);
+                    sp--; /* get rid of the now useless tag */
+                    // obj->process.sp--;                                                    /* get rid of the now useless tag */
+                    res = GoolObjectInterpret(obj, GOOL_FLAG_SUSPEND_ON_ANIM, &response); /* ...and continue execution until another animation instruction is reached */
+                    if (ISERRORCODE(res)) {
+                        return res;
+                    } /* return on fail */
+                }
+#ifdef CFLAGS_GOOL_DEBUG
             }
+#endif
             GoolObjectColors(obj);
             GoolObjectPhysics(obj);
             obj->process.status_a &= ~GOOL_FLAG_FIRST_FRAME; /* clear first frame flag */
         }
     }
     /* if object has no anim sequence, is not displayable (visible?), or global display flag is clear */
-    if (!obj->process.anim_seq ||
+    // if (!obj->process.anim_seq ||
+    if (!get_int_ptr(obj->process.anim_seq_handle) ||
         (status_b & GOOL_FLAG_INVISIBLE) ||
         !(cur_display_flags & GOOL_FLAG_DISPLAY)) {
         cur_obj = 0;    /* indicate that there is no 'current object' to display */
@@ -1378,7 +1483,8 @@ void GoolObjectTransform(gool_object *obj) {
     char *eid_str;
 
     status_b = obj->process.status_b;
-    anim = (gool_anim *)obj->process.anim_seq;
+    // anim = (gool_anim *)obj->process.anim_seq;
+    anim = (gool_anim *)get_generic(obj->process.anim_seq_handle);
     frame_idx = obj->process.anim_frame >> 8;
 #ifdef PSX
     ot = context.cur->ot;
@@ -1398,7 +1504,7 @@ void GoolObjectTransform(gool_object *obj) {
         if (status_b & 0x100000) {
             /* inherit zone colors */
             // TODO: ensure zone is validated correctly with offset != 0 etc.
-            if (obj->zone_offset == 0) {
+            if (!get_entry(obj->zone_handle)) {
                 zone = cur_zone;
             } else {
                 zone = GetGoolObjectZone(obj);
@@ -1563,7 +1669,7 @@ static int GoolTextStringTransform(
     bound.p1.x = val;
     max_x = 0;
     y_offs = 0;
-    while (c = *(str++)) {
+    while ((c = *(str++))) {
         scale.x = 400 << size;
         scale.y = 400 << size;
         if (c == '~') {
@@ -1577,7 +1683,8 @@ static int GoolTextStringTransform(
                 break;
             case 'p':
                 c = *(str++);
-                count = obj->process.sp[-2 - (c - '0')];
+                uint32_t *sp = get_int_ptr(obj->process.sp_handle);
+                count = sp[-2 - (c - '0')];
                 if (count == 1) {
                     str++;
                 }
@@ -1708,7 +1815,11 @@ void GoolTextObjectTransform(gool_object *obj, gool_text *text, int terms_skip, 
     } else {
         font = (gool_font *)&anims[font_offset * 4];
     }
-    sprintf(buf, &str[i], obj->process.sp[-2], obj->process.sp[-3], obj->process.sp[-4], obj->process.sp[-5]);
+
+    // sprintf(buf, &str[i], obj->process.sp[-2], obj->process.sp[-3], obj->process.sp[-4], obj->process.sp[-5]);
+    uint32_t *sp = get_int_ptr(obj->process.sp_handle);
+    sprintf(buf, &str[i], sp[-2], sp[-3], sp[-4], sp[-5]);
+
     while (buf[i++] != 0)
         ; /* skip to first null term char */
     i--;
@@ -1749,7 +1860,7 @@ static inline int GoolObjectColorByZone(gool_object *obj) {
     gool_colors *colors;
 
     obj->process.invincibility_state = 0;
-    if (obj->zone_offset == 0) {
+    if (!get_entry(obj->zone_handle)) {
         zone = cur_zone;
     } else {
         zone = GetGoolObjectZone(obj);
@@ -1769,7 +1880,7 @@ int GoolObjectColors(gool_object *obj) {
 
     invincibility_state = obj->process.invincibility_state;
     elapsed_since = frames_elapsed - obj->process.invincibility_stamp;
-    if (obj->zone_offset == 0) {
+    if (!get_entry(obj->zone_handle)) {
         zone = cur_zone;
     } else {
         zone = GetGoolObjectZone(obj);
@@ -1780,10 +1891,12 @@ int GoolObjectColors(gool_object *obj) {
         if (elapsed_since > 60) { /* 1s at 60fps */
             GoolObjectColorByZone(obj);
         }
-        if (obj->process.links[6]) {
+        // if (obj->process.links[6]) {
+        if (get_gool_object(obj->process.links_handle[6])) {
             g_header = (gool_header *)GetEntryItem(GetGoolObjectGlobal(obj), 0);
             if (g_header->category == 0x300) {
-                GoolSendEvent(obj, obj->process.links[6], GOOL_EVENT_HIT_INVINCIBLE, 1, 0);
+                // GoolSendEvent(obj, obj->process.links[6], GOOL_EVENT_HIT_INVINCIBLE, 1, 0);
+                GoolSendEvent(obj, get_gool_object(obj->process.links_handle[6]), GOOL_EVENT_HIT_INVINCIBLE, 1, 0);
             }
         }
     case 3:
@@ -1834,7 +1947,8 @@ int GoolObjectBound(gool_object *obj) {
     bound_idx = object_bound_count++;
     bound = &object_bounds[bound_idx]; /* allocate a new bound for this object/frame */
     bound->obj = obj;
-    anim = obj->process.anim_seq;
+    // anim = obj->process.anim_seq;
+    anim = (gool_anim *)get_generic(obj->process.anim_seq_handle);
     frame_idx = obj->process.anim_frame >> 8;
     if (obj->process.status_a & GOOL_FLAG_LBOUND_INVALID) {     /* local bounding volume needs recalc? */
         GoolObjectLocalBound(obj, &obj->process.vectors.scale); /* recalculate */
@@ -1904,7 +2018,8 @@ int GoolObjectBound(gool_object *obj) {
         if (TestBoundIntersection(&crash_bound, &bound->obj->bound)) { /* collision with crash? */
             GoolCollide(obj, &bound->obj->bound, crash, &crash_bound); /* handle it (i.e. signal objs) */
         } else {
-            obj->process.links[6] = 0;
+            // obj->process.links[6] = 0;
+            obj->process.links_handle[6] = 0;
         }
     }
 }
@@ -2026,7 +2141,8 @@ int GoolObjectPhysics(gool_object *obj) {
     }
 
     if (((gool_header *)GetEntryItem(GetGoolObjectGlobal(obj), 0))->type != 5) { /* not DoctC? */
-        obj->process.links[6] = 0;
+        // obj->process.links[6] = 0;
+        obj->process.links_handle[6] = 0;
     }
 
     if (status_b & GOOL_FLAG_TRANS_MOTION) { /* can move/translate? */
@@ -2118,7 +2234,9 @@ static inline uint32_t *GoolTranslateGop(gool_object *obj, uint32_t gop, gool_co
             return &consts->buf[consts->idx];
         } else if (!(gop & 0x80)) { /* var ref */
             idx = GoolSignShift(gop & 0x3F, 6);
-            return &obj->process.fp[idx];
+            // return &obj->process.fp[idx];
+            uint32_t *fp = get_int_ptr(obj->process.fp_handle);
+            return &fp[idx];
         } else if (gop == 0xBE0) { /* null ref */
             return (uint32_t *)0;
         } else if (gop == 0xBF0) { /* sp-double ref */
@@ -2129,7 +2247,8 @@ static inline uint32_t *GoolTranslateGop(gool_object *obj, uint32_t gop, gool_co
     } else { /* pool ref */
         link_idx = (gop >> 6) & 0x7;
         reg_idx = gop & 0x3F;
-        link = obj->process.links[link_idx];
+        // link = obj->process.links[link_idx];
+        link = get_gool_object(obj->process.links_handle[link_idx]);
         if (link) {
             return &link->regs[reg_idx];
         } else {
@@ -2142,7 +2261,11 @@ static inline uint32_t *GoolTranslateGop(gool_object *obj, uint32_t gop, gool_co
 static uint32_t *GoolTranslateInGop(gool_object *obj, uint32_t gop) {
     int idx;
     if ((gop & 0xFFF) == 0xE1F) { /* stack pop */
-        return --obj->process.sp;
+        // return --obj->process.sp;
+        uint32_t *sp = get_int_ptr(obj->process.sp_handle);
+        --sp;
+        obj->process.sp_handle = replace_generic(sp, obj->process.sp_handle);
+        return sp;
     } else if ((gop & 0xE00) == 0xE00) { /* stack ref */
         idx = gop & 0x1FF;
         return &obj->regs[idx];
@@ -2155,7 +2278,11 @@ static uint32_t *GoolTranslateInGop(gool_object *obj, uint32_t gop) {
 static uint32_t *GoolTranslateOutGop(gool_object *obj, uint32_t gop) {
     int idx;
     if ((gop & 0xFFF) == 0xE1F) { /* stack push */
-        return obj->process.sp++;
+        // return obj->process.sp++;
+        uint32_t *sp = get_int_ptr(obj->process.sp_handle);
+        sp++;
+        obj->process.sp_handle = replace_generic(sp, obj->process.sp_handle);
+        return sp;
     } else if ((gop & 0xE00) == 0xE00) { /* stack ref */
         idx = gop & 0x1FF;
         return &obj->regs[idx];
@@ -2299,8 +2426,11 @@ gool_debug_cache debug_cache = { 0 };
 int GoolObjectTryBreak(gool_object *obj, uint32_t opcode, uint32_t flags, int res);
 #endif /* CFLAGS_GOOL_DEBUG */
 
+size_t g_called_i = 0;
+
 //----- (800201DC) --------------------------------------------------------
 int GoolObjectInterpret(gool_object *obj, uint32_t flags, gool_state_ref *transition) {
+    g_called_i++;
     uint32_t instruction, opcode;
     gool_object *recipient;
     uint32_t arg;
@@ -2333,14 +2463,95 @@ int GoolObjectInterpret(gool_object *obj, uint32_t flags, gool_state_ref *transi
         return SUCCESS;
     } /* paused */
 #endif
+
+    uint32_t expected_instructions[24] = {
+        285253147,
+        293604872,
+        293604874,
+        293604939,
+        293604943,
+        381552745,
+        2249818342,
+        297270860,
+        381553535,
+        75922179,
+        2183643143,
+        75926275,
+        2183643143,
+        75930371,
+        2183643142,
+        285265422,
+        293613071,
+        293613072,
+        663268906,
+        293604937,
+        293899850,
+        2181645312,
+        2190032896,
+        2227506761,
+    };
+
+    uint32_t expected_pcs[24] = {
+        293604872,
+        293604874,
+        293604939,
+        293604943,
+        381552745,
+        2249818342,
+        2227506761,
+        381553535,
+        75922179,
+        2183643143,
+        285265422,
+        2183643143,
+        285265422,
+        2183643142,
+        285265422,
+        293613071,
+        293613072,
+        663268906,
+        293604937,
+        293899850,
+        2181645312,
+        2190032896,
+        293613083,
+        377493936,
+    };
+
+    uint32_t insts = 0;
+
+    if (g_called_i == 1) {
+        printf("i\tinstruction\t\texpected\tmatch\tpc\t\texpected\tmatch\n");
+    }
+
     while (1) {
+        insts += 1;
 #ifdef CFLAGS_GOOL_DEBUG
         if (dbg) {
             dbg->obj_prev = *obj;
         }
 #endif
         res = 0;
-        instruction = *(obj->process.pc++);
+
+        // instruction = *(obj->process.pc++);
+        uint32_t *pc = get_int_ptr(obj->process.pc_handle);
+        instruction = *(pc++);
+        obj->process.pc_handle = replace_generic(pc, obj->process.pc_handle);
+
+        if (g_called_i == 1) {
+            if (insts >= 1 && insts <= 24) {
+                uint32_t expected = expected_instructions[insts - 1];
+                uint32_t expected_pc = expected_pcs[insts - 1];
+
+                int match = instruction == expected;
+                int pc_match = *pc == expected_pc;
+
+                printf("%d\t%u\t\t%u\t%d\t%u\t%u\t\t%u\n", insts, instruction, expected, match, *pc, expected_pc, pc_match);
+            } else {
+                // printf("%d\t%u\t\tNA\t\t0\n", insts, instruction);
+            }
+        }
+
         opcode = G_OPCODE(instruction);
         switch (opcode) {
         case 0:
@@ -2554,7 +2765,8 @@ int GoolObjectInterpret(gool_object *obj, uint32_t flags, gool_state_ref *transi
             gool_object *link;
             link_idx = (instruction >> 12) & 7;
             color_idx = (instruction >> 15) & 0x3F;
-            link = obj->process.links[link_idx];
+            // link = obj->process.links[link_idx];
+            link = get_gool_object(obj->process.links_handle[link_idx]);
             color = link->colors_i[color_idx];
             GoolObjectPush(obj, color);
             break;
@@ -2566,7 +2778,8 @@ int GoolObjectInterpret(gool_object *obj, uint32_t flags, gool_state_ref *transi
             color = b;
             link_idx = (instruction >> 12) & 7;
             color_idx = (instruction >> 15) & 0x3F;
-            link = obj->process.links[link_idx];
+            // link = obj->process.links[link_idx];
+            link = get_gool_object(obj->process.links_handle[link_idx]);
             link->colors_i[color_idx] = color;
             break;
         }
@@ -2597,7 +2810,8 @@ int GoolObjectInterpret(gool_object *obj, uint32_t flags, gool_state_ref *transi
         case 0x90: {
             uint32_t idx;
             idx = (instruction >> 21) & 0x7;
-            recipient = obj->process.links[idx];
+            // recipient = obj->process.links[idx];
+            recipient = get_gool_object(obj->process.links_handle[idx]);
         } /* fall through!!! */
         case 0x8F:
             res = GoolOpSendEvent(obj, instruction, &flags, recipient, opcode);
@@ -2674,7 +2888,10 @@ int GoolObjectTryBreak(gool_object *obj, uint32_t opcode, uint32_t flags, int re
         }
     }
     if (!brk) {
-        offs = (uint32_t)(obj->process.pc - (uint32_t *)GetEntryItem(GetGoolObjectExternal(obj), 1));
+        // offs = (uint32_t)(obj->process.pc - (uint32_t *)GetEntryItem(GetGoolObjectExternal(obj), 1));
+        uint32_t *pc = get_int_ptr(obj->process.pc_handle);
+        offs = (uint32_t)(pc - (uint32_t *)GetEntryItem(GetGoolObjectExternal(obj), 1));
+
         mask = 0x80000000 >> (offs % 32);
         idx = offs / 32;
         if (dbg->breakpoints[idx] & mask) {
@@ -2702,7 +2919,8 @@ int GoolObjectTryBreak(gool_object *obj, uint32_t opcode, uint32_t flags, int re
 #endif
 
 static inline void GoolOp13unnamed(gool_object *obj, uint32_t instruction) {
-    int32_t *inout, p1, p2, rate, prog, absprog;
+    uint32_t *inout;
+    int32_t p1, p2, rate, prog, absprog;
 
     if (G_OPA(instruction) == 0xBF0) {
         p1 = GoolObjectPop(obj);
@@ -2793,7 +3011,8 @@ static inline void GoolOpMisc(gool_object *obj, uint32_t instruction) {
     case 6: { /* [euclidian or manhattan] distance from vec(src) to link(dst) */
         vec tmp[2];
         link_idx = (instruction >> 12) & 7;
-        link = obj->process.links[link_idx];
+        // link = obj->process.links[link_idx];
+        link = get_gool_object(obj->process.links_handle[link_idx]);
         if (sop1 == 6) {
             src_trans = (vec *)ptr; // ?
         } else {
@@ -2819,7 +3038,8 @@ static inline void GoolOpMisc(gool_object *obj, uint32_t instruction) {
         uint32_t ang_xz;
         int32_t lang_xz;
         link_idx = (instruction >> 12) & 7;
-        link = obj->process.links[link_idx];
+        // link = obj->process.links[link_idx];
+        link = get_gool_object(obj->process.links_handle[link_idx]);
         src_trans = &obj->process.vectors.trans;
         dst_trans = &link->process.vectors.trans;
         ang_xz = AngDistXZ(src_trans, dst_trans); /* angleXZ(src_trans, dst_trans); */
@@ -2832,7 +3052,8 @@ static inline void GoolOpMisc(gool_object *obj, uint32_t instruction) {
     }
     case 2: { /* angle between vec and link vec */
         link_idx = (instruction >> 12) & 7;
-        link = obj->process.links[link_idx];
+        // link = obj->process.links[link_idx];
+        link = get_gool_object(obj->process.links_handle[link_idx]);
         src_trans = &link->process.vectors.trans;
         dst_trans = (vec *)ptr;
         if (obj->process.status_b & 0x200200) {
@@ -2845,7 +3066,8 @@ static inline void GoolOpMisc(gool_object *obj, uint32_t instruction) {
     case 3: { /* load link register */
         uint32_t reg_idx, data;
         link_idx = (instruction >> 12) & 7;
-        link = obj->process.links[link_idx];
+        // link = obj->process.links[link_idx];
+        link = get_gool_object(obj->process.links_handle[link_idx]);
         reg_idx = *(ptr) >> 8;
         data = link->regs[reg_idx];
         GoolObjectPush(obj, data);
@@ -2854,7 +3076,8 @@ static inline void GoolOpMisc(gool_object *obj, uint32_t instruction) {
     case 4: { /* set link register */
         uint32_t reg_idx, data;
         link_idx = (instruction >> 12) & 7;
-        link = obj->process.links[link_idx];
+        // link = obj->process.links[link_idx];
+        link = get_gool_object(obj->process.links_handle[link_idx]);
         reg_idx = *(ptr) >> 8;
         data = GoolObjectPop(obj);
         link->regs[reg_idx] = data;
@@ -2882,7 +3105,8 @@ static inline void GoolOpMisc(gool_object *obj, uint32_t instruction) {
                     child,
                     (gool_ifnptr_t)GoolObjectHasPidFlags,
                     id); /*findObject(child, hasID, id);*/
-                child = child->process.links[2];
+                // child = child->process.links[2];
+                child = get_gool_object(child->process.links_handle[2]);
             }
         }
         GoolObjectPush(obj, (uint32_t)found);
@@ -2912,7 +3136,8 @@ static inline void GoolOpMisc(gool_object *obj, uint32_t instruction) {
         }
         if (ISSUCCESSCODE(zone)) {
             link_idx = (instruction >> 12) & 7;
-            link = obj->process.links[link_idx];
+            // link = obj->process.links[link_idx];
+            link = get_gool_object(obj->process.links_handle[link_idx]);
             // link->zone = zone;
             SetGoolObjectZone(link, zone);
         }
@@ -3072,7 +3297,8 @@ static inline void GoolOpMisc(gool_object *obj, uint32_t instruction) {
         case 8: {
             int32_t disty, distxz, atan;
             link_idx = (instruction >> 12) & 7;
-            link = obj->process.links[link_idx];
+            // link = obj->process.links[link_idx];
+            link = get_gool_object(obj->process.links_handle[link_idx]);
             src_trans = (vec *)ptr;
             dst_trans = &link->process.vectors.trans;
             disty = dst_trans->y - src_trans->y;
@@ -3106,7 +3332,11 @@ static inline void GoolOpMisc(gool_object *obj, uint32_t instruction) {
         gool_object *child, *sibling;
         int res;
         link_idx = (instruction >> 12) & 7;
-        link = ((gool_object **)&obj->process.links[0])[link_idx];
+
+        // link = ((gool_object **)&obj->process.links[0])[link_idx];
+        // TODO: why was this written like this ^^^?
+        link = get_gool_object(obj->process.links_handle[link_idx]);
+
         query.categories = (instruction >> 15) & 0x1F; /* bitfield, one bit per object category */
         query.obj = link;
         query.nearest_obj = 0;
@@ -3121,7 +3351,8 @@ static inline void GoolOpMisc(gool_object *obj, uint32_t instruction) {
                     child,
                     (gool_ifnptr_t)GoolFindNearestObject,
                     (int)&query);
-                child = child->process.links[2];
+                // child = child->process.links[2];
+                child = get_gool_object(child->process.links_handle[2]);
             }
         }
         GoolObjectPush(obj, (uint32_t)query.nearest_obj); /* is this correct? */
@@ -3132,7 +3363,8 @@ static inline void GoolOpMisc(gool_object *obj, uint32_t instruction) {
         pnt *test;
         int res;
         link_idx = (instruction >> 12) & 7;
-        link = obj->process.links[link_idx];
+        // link = obj->process.links[link_idx];
+        link = get_gool_object(obj->process.links_handle[link_idx]);
         bound.p1.x = link->process.vectors.trans.x + link->bound.p1.x;
         bound.p1.y = link->process.vectors.trans.y + link->bound.p1.y;
         bound.p1.z = link->process.vectors.trans.z + link->bound.p1.z;
@@ -3157,6 +3389,12 @@ static inline void GoolOpMisc(gool_object *obj, uint32_t instruction) {
 }
 
 static inline int GoolOpControlFlow(gool_object *obj, uint32_t instruction, uint32_t *flags, gool_state_ref *transition) {
+
+    int lets_debug = 0;
+    if (instruction == 2183643142) {
+        lets_debug = 1;
+    }
+
     uint32_t op_type, cond_type;
     int32_t offset, argc;
     gool_state *state;
@@ -3171,17 +3409,28 @@ static inline int GoolOpControlFlow(gool_object *obj, uint32_t instruction, uint
         cond = G_TRANS_REGREF(obj, (instruction >> 14) & 0x3F);
     } else if (cond_type == 2) {
         cond = !G_TRANS_REGREF(obj, (instruction >> 14) & 0x3F);
+        if (lets_debug) {
+            cond = !cond;
+        }
     }
+
     /* else cond is unchanged; use val from previous invocation */
     op_type = (instruction >> 22) & 3;
     if (!cond || op_type == 3) {
         return 0;
     }
-    if (op_type == 0) { /* branch */
-        offset = (int32_t)((instruction & 0x3FF) << 22) >> 22;
-        argc = (instruction >> 10) & 0xF;
-        obj->process.pc += offset;
-        obj->process.sp -= argc;
+    if (op_type == 0) {                                        /* branch */
+        offset = (int32_t)((instruction & 0x3FF) << 22) >> 22; // 6
+        argc = (instruction >> 10) & 0xF;                      // 0
+
+        // obj->process.pc += offset;
+        // obj->process.sp -= argc;
+        uint32_t *pc = get_int_ptr(obj->process.pc_handle);
+        pc += offset;
+        obj->process.pc_handle = replace_generic(pc, obj->process.pc_handle);
+        uint32_t *sp = get_int_ptr(obj->process.sp_handle);
+        sp -= argc;
+        obj->process.sp_handle = replace_generic(sp, obj->process.sp_handle);
     } else if (op_type == 1) { /* state change */
         state_idx = instruction & 0x3FFF;
         state = (gool_state *)GetEntryItem(GetGoolObjectGlobal(obj), 4) + state_idx;
@@ -3232,7 +3481,8 @@ static inline int GoolOpChangeAnim(gool_object *obj, uint32_t instruction, uint3
     flip = (instruction >> 22) & 0x3;
     anim = (gool_anim *)((uint32_t *)GetEntryItem(GetGoolObjectGlobal(obj), 5) + anim_offs);
     obj->process.anim_frame = frame_idx << 8;
-    obj->process.anim_seq = anim;
+    // obj->process.anim_seq = anim;
+    obj->process.anim_seq_handle = store_generic(anim);
     GoolObjectPush(obj, (wait << 24) | frames_elapsed);
     if (flip == 0) {
         obj->process.vectors.scale.x = -abs(obj->process.vectors.scale.x);
@@ -3284,7 +3534,8 @@ static inline void GoolOpTransformVectors(gool_object *obj, uint32_t instruction
         int32_t progress;
         int trans_idx;
         vec *trans, trans_new;
-        if (ptr && obj->process.entity) {
+        // if (ptr && obj->process.entity) {
+        if (ptr && get_zone_entity(obj->process.entity_handle)) {
             progress = *(ptr);                   /* path progress value = point index */
             trans_idx = (instruction >> 12) & 7; /* vector in & out */
             trans = &obj->process.vectors_v[trans_idx];
@@ -3361,8 +3612,10 @@ static inline void GoolOpTransformVectors(gool_object *obj, uint32_t instruction
         tgeo_header *header;
         vec in, *out, scale;
         link_idx = (instruction >> 21) & 7;
-        link = obj->process.links[link_idx];
-        anim = (gool_vertex_anim *)link->process.anim_seq;
+        // link = obj->process.links[link_idx];
+        link = get_gool_object(obj->process.links_handle[link_idx]);
+        // anim = (gool_vertex_anim *)link->process.anim_seq;
+        anim = (gool_vertex_anim *)get_generic(link->process.anim_seq_handle);
         if (!anim || anim->header.type != 1) { /* no anim or not a vertex anim? */
             break;
         }
@@ -3405,9 +3658,10 @@ static inline void GoolOpJumpAndLink(gool_object *obj, uint32_t instruction, uin
     GoolObjectPushFrame(obj, argc, *flags);
     if (instr_idx != 0x3FFF) {
         code = (uint32_t *)GetEntryItem(GetGoolObjectGlobal(obj), 1);
-        obj->process.pc = &code[instr_idx];
+        // obj->process.pc = &code[instr_idx];
+        obj->process.pc_handle = store_generic(&code[instr_idx]);
     } else {
-        obj->process.pc = 0;
+        obj->process.pc_handle = store_generic(0);
     }
     *flags &= ~(GOOL_FLAG_SUSPEND_ON_RET | GOOL_FLAG_EVENT_SERVICE);
 }
@@ -3421,9 +3675,11 @@ static inline int GoolOpSendEvent(gool_object *obj, uint32_t instruction, uint32
     cond = G_TRANS_REGREF(obj, (instruction >> 12) & 0x3F);
     argc = (instruction >> 18) & 0x7;
     mode = (instruction >> 21) & 0x7;
+
+    uint32_t *sp = get_int_ptr(obj->process.sp_handle);
     if (p_event && cond && (recipient || opcode == 0x8F)) {
         for (i = 0; i < argc; i++) {
-            argv[i] = obj->process.sp[-argc + i];
+            argv[i] = sp[-argc + i];
         }
         event = *p_event;
         if (opcode == 0x8F) {
@@ -3443,7 +3699,9 @@ static inline int GoolOpSendEvent(gool_object *obj, uint32_t instruction, uint32
             GoolObjectPop(obj);
         }
     } else {
-        obj->process.sp -= argc;
+        // obj->process.sp -= argc;
+        sp -= argc;
+        obj->process.sp_handle = replace_generic(sp, obj->process.sp_handle);
     }
     return 0;
 }
@@ -3489,8 +3747,14 @@ static inline int GoolOpReturnStateTransition(gool_object *obj,
     } else if (ret_type == 0) {
         offset = ((int32_t)((instruction & 0x3FF) << 22)) >> 22;
         argc = (instruction >> 10) & 0xF;
-        obj->process.pc += offset;
-        obj->process.sp -= argc;
+        // obj->process.pc += offset;
+        // obj->process.sp -= argc;
+        uint32_t *pc = get_int_ptr(obj->process.pc_handle);
+        pc += offset;
+        obj->process.pc_handle = replace_generic(pc, obj->process.pc_handle);
+        uint32_t *sp = get_int_ptr(obj->process.sp_handle);
+        sp -= argc;
+        obj->process.sp_handle = replace_generic(sp, obj->process.sp_handle);
     }
     return 0;
 }
@@ -3504,23 +3768,31 @@ static inline void GoolOpSpawnChildren(gool_object *obj, uint32_t instruction, u
     type = (instruction >> 12) & 0xFF;
     subtype = (instruction >> 6) & 0x3F;
     spawn_count = (instruction & 0x3F);
+    uint32_t *sp = get_int_ptr(obj->process.sp_handle);
     if (!spawn_count) {
-        spawn_count = obj->process.sp[--argc]; /* is this correct? */
+        spawn_count = sp[--argc]; /* is this correct? */
     }
     if (spawn_count > 0) {
         flag = (opcode == 0x91);
         for (i = 0; i < spawn_count; i++) {
-            args = &obj->process.sp[-argc];
+            // args = &obj->process.sp[-argc];
+            args = &sp[-argc];
             child = GoolObjectCreate(obj, type, subtype, argc, args, flag);
             if (ISERRORCODE(child)) {
-                obj->process.misc_child = 0;
+                // obj->process.misc_child = 0;
+                obj->process.misc_child_handle = store_generic(0);
             } else {
-                child->process.links[4] = obj;
-                obj->process.misc_child = child;
+                // child->process.links[4] = obj;
+                child->process.links_handle[4] = store_gool_object(obj);
+                // obj->process.misc_child = child;
+                obj->process.misc_child_handle = store_generic(child);
             }
         }
     }
-    obj->process.sp -= argc; /* pop args */
+
+    // obj->process.sp -= argc; /* pop args */
+    sp -= argc;
+    obj->process.sp_handle = replace_generic(sp, obj->process.sp_handle);
 }
 
 static inline void GoolOpPaging(gool_object *obj, uint32_t instruction) {
@@ -3531,7 +3803,8 @@ static inline void GoolOpPaging(gool_object *obj, uint32_t instruction) {
     arg = GoolTranslateInGop(obj, G_OPB(instruction));
     switch (sop) {
     case 1:
-        obj->process.misc_entry = NSOpen((eid_t *)arg, 0, 1);
+        // obj->process.misc_entry = NSOpen((eid_t *)arg, 0, 1);
+        obj->process.misc_entry_handle = store_generic(NSOpen((eid_t *)arg, 0, 1));
         break;
     case 2:
         obj->process.misc_flag = NSClose((entry *)arg, 1);
@@ -3545,12 +3818,16 @@ static inline void GoolOpPaging(gool_object *obj, uint32_t instruction) {
         break;
     case 5:
         count = *arg;
-        res = NSCountAvailablePages2(&obj->process.sp[-count], count);
-        obj->process.sp -= count;
+        uint32_t *sp = get_int_ptr(obj->process.sp_handle);
+        res = NSCountAvailablePages2(&sp[-count], count);
+        // obj->process.sp -= count;
+        sp -= count;
+        obj->process.sp_handle = replace_generic(sp, obj->process.sp_handle);
         GoolObjectPush(obj, res);
         break;
     case 6:
-        obj->process.misc_entry = NSOpen((entry *)arg, 1, 1);
+        // obj->process.misc_entry = NSOpen((entry *)arg, 1, 1);
+        obj->process.misc_entry_handle = store_generic(NSOpen((entry *)arg, 1, 1));
         break;
     }
 }
@@ -3618,7 +3895,8 @@ static inline void GoolOpReactSolidSurfaces(gool_object *obj, uint32_t instructi
     case 1:
         trans = obj->process.vectors.trans;
         trans2 = obj->process.vectors.trans;
-        if (obj == crash || obj->process.links[1] == crash) {
+        // if (obj == crash || obj->process.links[1] == crash) {
+        if (obj == crash || get_gool_object(obj->process.links_handle[1]) == crash) {
             ZoneFindNearestObjectNode2(obj, &trans2);
         }
         *((gool_objnode *)&obj->process.misc_node) = ZoneFindNearestObjectNode(obj, &trans);
@@ -3640,7 +3918,7 @@ static inline void GoolOpReactSolidSurfaces(gool_object *obj, uint32_t instructi
             flag2 = 1;
         }
         trans3 = obj->process.vectors.trans;
-        if (obj->zone_offset == 0) {
+        if (!get_entry(obj->zone_handle)) {
             zone = cur_zone;
         } else {
             zone = GetGoolObjectZone(obj);
@@ -3681,13 +3959,17 @@ int GoolSendEvent(gool_object *sender, gool_object *recipient, uint32_t event, i
     if (!recipient) {
         return SUCCESS;
     }
-    recipient->process.links[7] = sender;
-    res = ERROR_INVALID_STATERETURN; /* set default (for when no ESR) */
-    if (recipient->process.ep) {     /* recipient has event service routine? */
+    // recipient->process.links[7] = sender;
+    recipient->process.links_handle[7] = store_gool_object(sender);
+    res = ERROR_INVALID_STATERETURN;                 /* set default (for when no ESR) */
+    if (get_int_ptr(recipient->process.ep_handle)) { /* recipient has event service routine? */
         GoolObjectPush(recipient, event);
         GoolObjectPush(recipient, (uint32_t)argv);
         GoolObjectPushFrame(recipient, 2, 0xFFFF);
-        recipient->process.pc = recipient->process.ep;
+
+        // recipient->process.pc = recipient->process.ep;
+        recipient->process.pc_handle = recipient->process.ep_handle;
+
         res = GoolObjectInterpret(recipient, GOOL_FLAG_EVENT_SERVICE, &transition); /* call it */
         if (res != ERROR_INVALID_STATERETURN) {
             if (ISERRORCODE(res)) {
@@ -3722,7 +4004,8 @@ int GoolSendEvent(gool_object *sender, gool_object *recipient, uint32_t event, i
             GoolObjectPushFrame(recipient, argc, 0xFFFF);
             offs = state & 0x7FFF; /* offset of interrupt (in instructions) */
             code = (uint32_t *)GetEntryItem(exec, 1);
-            recipient->process.pc = &code[offs];
+            // recipient->process.pc = &code[offs];
+            recipient->process.pc_handle = store_generic(&code[offs]);
             flags = GOOL_FLAG_SUSPEND_ON_RET | GOOL_FLAG_SUSPEND_ON_RETLNK;
             res = GoolObjectInterpret(recipient, flags, 0); /* execute interrupt */
             return res;                                     /* return */
@@ -4030,10 +4313,12 @@ int GoolCollide(gool_object *tgt, bound *tgt_bound, gool_object *src, bound *src
     uint32_t dist_cur, dist_new;
     bound test_bound;
 
-    cur_collider = tgt->process.links[6];
+    // cur_collider = tgt->process.links[6];
+    cur_collider = get_gool_object(tgt->process.links_handle[6]);
     if (cur_collider && cur_collider != src) {
         if (src->process.state_flags & 0x800) {
-            src->process.links[6] = tgt;
+            // src->process.links[6] = tgt;
+            src->process.links_handle[6] = store_gool_object(tgt);
             return ERROR_COLLISION_OVERRIDE;
         } else {
             dist_cur = ApxDist(&tgt->process.vectors.trans, &cur_collider->process.vectors.trans);
@@ -4045,8 +4330,10 @@ int GoolCollide(gool_object *tgt, bound *tgt_bound, gool_object *src, bound *src
             }
         }
     }
-    src->process.links[6] = tgt;
-    tgt->process.links[6] = src;
+    // src->process.links[6] = tgt;
+    // tgt->process.links[6] = src;
+    src->process.links_handle[6] = store_gool_object(tgt);
+    tgt->process.links_handle[6] = store_gool_object(src);
     if (tgt->process.hotspot_size) {
         test_bound.p1.x = tgt_bound->p1.x + tgt->process.hotspot_size;
         test_bound.p1.y = tgt_bound->p1.y;
@@ -4177,10 +4464,13 @@ int GoolSendToColliders2(gool_object *sender, gool_object *recipients, uint32_t 
     query.count = 0;
     obj = GoolObjectGetChildren(recipients);
     while (obj) {
-        child = obj->process.links[3];
-        sibling = obj->process.links[2];
+        // child = obj->process.links[3];
+        // sibling = obj->process.links[2];
+        child = get_gool_object(obj->process.links_handle[3]);
+        sibling = get_gool_object(obj->process.links_handle[2]);
         while (child) {
-            child_sibling = child->process.links[2];
+            // child_sibling = child->process.links[2];
+            child_sibling = get_gool_object(child->process.links_handle[2]);
             res = GoolObjectTraverseTreePostorder(
                 child,
                 (gool_ifnptr_t)GoolSendIfColliding,
@@ -4204,12 +4494,16 @@ int GoolObjectInterrupt(gool_object *obj, uint32_t addr, int argc, uint32_t *arg
     int i, res; // $a0
     uint32_t *code, flags;
 
+    uint32_t *sp = get_int_ptr(obj->process.sp_handle);
     for (i = 0; i < argc; i++) {
-        *(obj->process.sp++) = argv[i];
+        // *(obj->process.sp++) = argv[i];
+        *(sp++) = argv[i];
     }
+    obj->process.sp_handle = replace_generic(sp, obj->process.sp_handle);
     GoolObjectPushFrame(obj, 0, 0xFFFF);
     code = (uint32_t *)GetEntryItem(GetGoolObjectGlobal(obj), 1);
-    obj->process.pc = &code[addr & 0x7FFF];
+    // obj->process.pc = &code[addr & 0x7FFF];
+    obj->process.pc_handle = store_generic(&code[addr & 0x7FFF]);
     flags = GOOL_FLAG_SUSPEND_ON_RET | GOOL_FLAG_SUSPEND_ON_RETLNK;
     res = GoolObjectInterpret(obj, flags, 0);
     return res;
@@ -4230,8 +4524,13 @@ void GoolObjectPrint(gool_object *obj, FILE *stream) {
     header = (gool_header *)GetEntryItem(GetGoolObjectGlobal(obj), 0);
     base_sp = header->init_sp * 4;
     stack = ((uint8_t *)&obj->process) + base_sp;
-    fp = (uint32_t)obj->process.fp - (uint32_t)stack;
-    sp = (uint32_t)obj->process.sp - (uint32_t)stack;
+
+    // fp = (uint32_t)obj->process.fp - (uint32_t)stack;
+    // sp = (uint32_t)obj->process.sp - (uint32_t)stack;
+    // TODO: remove redundant casts
+    fp = (uint32_t)get_int_ptr(obj->process.fp_handle) - (uint32_t)stack;
+    sp = (uint32_t)get_int_ptr(obj->process.sp_handle) - (uint32_t)stack;
+
     // fprintf(stream, "stack start: %x+60\n", base_sp);
     // fprintf(stream, "stack size: %x\n", sp);
     // fprintf(stream, "stack frame: %x | %x\n", base_sp+fp, base_sp+sp);
@@ -4264,7 +4563,8 @@ void GoolObjectPrintDebug(gool_object *obj, FILE *stream) {
 
     GoolObjectPrint(obj, stream);
     code = (uint32_t *)GetEntryItem(GetGoolObjectExternal(obj), 1);
-    pcins = (uint32_t)obj->process.pc - (uint32_t)code;
+    // pcins = (uint32_t)obj->process.pc - (uint32_t)code;
+    pcins = (uint32_t)get_int_ptr(obj->process.pc_handle) - (uint32_t)code;
     pcs = max(pcins - ((GOOL_DEBUG_DISLEN / 2) * 4), 0);
     pcn = pcs + (GOOL_DEBUG_DISLEN * 4);
     // fprintf(stream, "current code window:\n");
@@ -4292,9 +4592,12 @@ static void GoolObjectPreserveFrames(gool_object *obj) {
     if (!dbg) {
         return;
     }
-    dbg->prev_pc = obj->process.pc;
-    fp = obj->process.fp;
-    sp = obj->process.sp;
+    // dbg->prev_pc = obj->process.pc;
+    // fp = obj->process.fp;
+    // sp = obj->process.sp;
+    dbg->prev_pc = get_int_ptr(obj->process.pc_handle);
+    fp = get_int_ptr(obj->process.fp_handle);
+    sp = get_int_ptr(obj->process.sp_handle);
     frame_count = 0;
     do {
         flags = *fp;
@@ -4303,8 +4606,10 @@ static void GoolObjectPreserveFrames(gool_object *obj) {
         fp = (uint32_t *)((uint8_t *)&obj->process + rfp);
         ++frame_count;
     } while (flags != 0xFFFF);
-    fp = obj->process.fp;
-    sp = obj->process.sp;
+    // fp = obj->process.fp;
+    // sp = obj->process.sp;
+    fp = get_int_ptr(obj->process.fp_handle);
+    sp = get_int_ptr(obj->process.sp_handle);
     i = 0;
     for (i = frame_count - 1; i >= 0; i--) {
         frame = &dbg->frames[i];
@@ -4332,9 +4637,12 @@ static void GoolObjectPreserveFrames(gool_object *obj) {
         sp = (uint32_t *)((uint8_t *)&obj->process + rsp);
     }
     dbg->frame_count = frame_count;
-    obj->process.pc = pc;
-    obj->process.fp = fp;
-    obj->process.sp = sp;
+    // obj->process.pc = pc;
+    // obj->process.fp = fp;
+    // obj->process.sp = sp;
+    obj->process.pc_handle = store_generic(pc);
+    obj->process.fp_handle = store_generic(fp);
+    obj->process.sp_handle = store_generic(sp);
 }
 
 static void GoolObjectRestoreFrames(gool_object *obj) {
@@ -4352,14 +4660,19 @@ static void GoolObjectRestoreFrames(gool_object *obj) {
             GoolObjectPush(obj, frame->argv[j]);
         }
         GoolObjectPushFrame(obj, frame->argc, frame->flags);
+
         if ((int)frame->pc != -1) {
-            *(obj->process.fp + 1) = (uint32_t)frame->pc;
+            // *(obj->process.fp + 1) = (uint32_t)frame->pc;
+            uint32_t *fp = get_int_ptr(obj->process.fp_handle);
+            *(fp + 1) = (uint32_t)frame->pc;
         }
+
         for (j = 0; j < frame->len; j++) {
             GoolObjectPush(obj, frame->data[j]);
         }
     }
-    obj->process.pc = dbg->prev_pc;
+    // obj->process.pc = dbg->prev_pc;
+    obj->process.pc_handle = store_generic(dbg->prev_pc);
 }
 
 static gool_debug *GoolObjectDebugAlloc() {
@@ -4399,7 +4712,8 @@ gool_debug *GoolObjectDebug(gool_object *obj) {
     int i;
 
     dbg = 0;
-    if (obj->process.entity) {
+    // if (obj->process.entity) {
+    if (get_int_ptr(obj->process.entity_handle)) {
         id = obj->process.pid_flags >> 8;
         dbg = debug_cache.by_id[id];
         if (!dbg) {

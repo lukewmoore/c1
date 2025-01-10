@@ -42,12 +42,11 @@ typedef struct {
     // wgeo_vertex *vertices;
     // wgeo_texinfo *texinfos;
     // struct _entry *tpages[8];
-
-    int32_t header_offset;    // Instead of wgeo_header *header
-    int32_t polygons_offset;  // Instead of wgeo_polygon *polygons
-    int32_t vertices_offset;  // Instead of wgeo_vertex *vertices
-    int32_t texinfos_offset;  // Instead of wgeo_texinfo *texinfos
-    int32_t tpage_offsets[8]; // Instead of struct _entry *tpages[8]
+    ptr_handle_t header_handle;    // wgeo_header *
+    ptr_handle_t polygons_handle;  // wgeo_polygon *
+    ptr_handle_t vertices_handle;  // wgeo_vertex *
+    ptr_handle_t texinfos_handle;  // wgeo_texinfo *
+    ptr_handle_t tpages_handle[8]; // entry *
 } zone_world;
 
 typedef struct {
@@ -120,10 +119,10 @@ typedef struct {
     int16_t rot_z;
 } zone_path_point;
 
-typedef struct {
+typedef struct zone_path {
     eid_t slst;
     // entry *parent_zone;
-    int32_t parent_zone_offset;
+    ptr_handle_t parent_zone_handle; // entry *
     uint32_t neighbor_path_count;
     zone_neighbor_path neighbor_paths[4];
     uint8_t entrance_index;
@@ -147,9 +146,9 @@ typedef struct {
     int16_t z;
 } zone_entity_path_point;
 
-typedef struct {
+typedef struct zone_entity {
     // entry *parent_zone;
-    int32_t parent_zone_offset;
+    ptr_handle_t parent_zone_handle; // entry *
     uint16_t spawn_flags;
     uint16_t group;
     uint16_t id;

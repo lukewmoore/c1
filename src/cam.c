@@ -739,7 +739,9 @@ int CamDeath(int *count) {
     int32_t ang_xz, ang_yz;
 
     obj = cam_spin_obj;
-    anim = obj->process.anim_seq;
+    // anim = obj->process.anim_seq;
+    // anim = NS_OFFSET_TO_POINTER((&obj->process), gool_anim, anim_seq);
+    anim = (gool_anim *)get_generic(obj->process.anim_seq_handle);
     svtx = NSLookup(&anim->eid);
     frame = (svtx_frame *)GetEntryItem(svtx, obj->process.anim_frame >> 8);
     tgeo = NSLookup(&frame->tgeo);

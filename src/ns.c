@@ -40,53 +40,67 @@ extern eid_t insts[8];
 
 // page entry offet is a manual relative offset, not from binary
 struct entry *GetPageEntry(page *page, int i) {
-    assert(i >= 0 && i < page->entry_count);
+    // assert(i >= 0 && i < page->entry_count);
     return (struct entry *)((uint8_t *)page + page->entry_offsets[i]);
 }
 
 uint8_t *GetEntryItem(struct entry *entry, int i) {
-    assert(i >= 0 && i < entry->item_count);
+    // assert(i >= 0 && i < entry->item_count);
     return (uint8_t *)entry + entry->item_offsets[i];
 }
 
 struct entry *GetEntryRefEntry(entry_ref *ref) {
-    return (struct entry *)((uint8_t *)ref + ref->en_offset);
+    // return (struct entry *)((uint8_t *)ref + ref->en_offset);
+    // return NS_OFFSET_TO_POINTER(ref, entry, en);
+    return get_entry(ref->en_handle);
 }
 
 // ref pte offet is a manual relative offset, not from binary
 nsd_pte *GetEntryRefPte(entry_ref *ref) {
-    return (nsd_pte *)((uint8_t *)ref + ref->pte_offset);
+    // return (nsd_pte *)((uint8_t *)ref + ref->pte_offset);
+    // return NS_OFFSET_TO_POINTER(ref, nsd_pte, pte);
+    return get_pte(ref->pte_handle);
 }
 
 // ref pte offet is a manual relative offset, not from binary
 static inline void SetEntryRefPte(entry_ref *ref, nsd_pte *pte) {
-    ref->pte_offset = (uint32_t)((uint8_t *)pte - (uint8_t *)ref);
+    // ref->pte_offset = (uint32_t)((uint8_t *)pte - (uint8_t *)ref);
+    // NS_POINTER_TO_OFFSET(ref, pte, pte);
+    ref->pte_handle = store_pte(pte);
 }
 
 // pte entry offet is a manual relative offset, not from binary
 static inline entry *GetPteEntry(nsd_pte *pte) {
-    return (entry *)((uint8_t *)pte + pte->entry_offset);
+    // return (entry *)((uint8_t *)pte + pte->entry_offset);
+    // return NS_OFFSET_TO_POINTER(pte, entry, entry);
+    return get_entry(pte->entry_handle);
 }
 
 // pte entry offet is a manual relative offset, not from binary
 static inline void SetPteEntry(nsd_pte *pte, entry *entry) {
-    pte->entry_offset = (uint32_t)((uint8_t *)entry - (uint8_t *)pte);
+    // pte->entry_offset = (uint32_t)((uint8_t *)entry - (uint8_t *)pte);
+    // NS_POINTER_TO_OFFSET(pte, entry, entry);
+    pte->entry_handle = store_entry(entry);
 }
 
 entry *GetZonePathParentZone(zone_path *path) {
-    return (entry *)((uint8_t *)path + path->parent_zone_offset);
+    // return (entry *)((uint8_t *)path + path->parent_zone_offset);
+    return get_entry(path->parent_zone_handle);
 }
 
 void SetZonePathParentZone(zone_path *path, entry *zone) {
-    path->parent_zone_offset = (uint32_t)((uint8_t *)zone - (uint8_t *)path);
+    // path->parent_zone_offset = (uint32_t)((uint8_t *)zone - (uint8_t *)path);
+    path->parent_zone_handle = store_entry(zone);
 }
 
 entry *GetZoneEntityParentZone(zone_entity *entity) {
-    return (entry *)((uint8_t *)entity + entity->parent_zone_offset);
+    // return (entry *)((uint8_t *)entity + entity->parent_zone_offset);
+    return get_entry(entity->parent_zone_handle);
 }
 
 void SetZoneEntityParentZone(zone_entity *entity, entry *zone) {
-    entity->parent_zone_offset = (uint32_t)((uint8_t *)zone - (uint8_t *)entity);
+    // entity->parent_zone_offset = (uint32_t)((uint8_t *)zone - (uint8_t *)entity);
+    entity->parent_zone_handle = store_entry(zone);
 }
 
 // (80012580)
@@ -375,8 +389,6 @@ uint8_t *NSFileReadRange(const char *filename, int start, int end, size_t *size)
     size_t tmp;
     uint8_t *data;
 
-    printf("\nReading File Path: %s\n", filename);
-
     if (end == 0 || (end != -1 && start >= end)) {
         return 0;
     }
@@ -395,9 +407,6 @@ uint8_t *NSFileReadRange(const char *filename, int start, int end, size_t *size)
         end = ftell(file);
     }
     *size = end - start;
-
-    printf("File size: %zu bytes\n", *size);
-    printf("Reading range: start=%d, end=%d\n\n", start, end);
 
     if (posix_memalign((void **)&data, sizeof(void *), *size) != 0) {
         data = NULL;
@@ -566,6 +575,10 @@ static inline int NSPageTranslateOffsets(page *page) {
             // No need to modify the offset - keep it relative
         }
     }
+
+    // TODO: include this with new offset system
+    // page->entries[page->entry_count] += (uint32_t)page;
+    page->entry_offsets[page->entry_count] += (uint32_t)page;
 
     return SUCCESS;
 }
@@ -1024,27 +1037,9 @@ int NSCountAvailablePages2(void *list, int len) {
 // (80015978)
 nsd_pte *NSProbe(eid_t eid) {
     int hash = (eid >> 15) & 0xFF;
-
-    printf("\nNSProbe Debug:\n");
-    printf("input eid: 0x%x\n", eid);
-    printf("eid >> 15: 0x%x\n", eid >> 15);
-    printf("calculated hash: %d (0x%x)\n", hash, hash);
-
-    printf("ptb_offset[%d] = %u\n", hash, ns.nsd->ptb_offsets[hash]);
-    printf("page_table base: %p\n", ns.page_table);
-    printf("pte_buckets[%d] = %p\n", hash, ns.pte_buckets[hash]);
-
     nsd_pte *pte = ns.pte_buckets[hash];
-    if (pte) {
-        printf("First few entries in bucket:\n");
-        for (int i = 0; i < 4; i++) {
-            printf("  [%d] eid=0x%x\n", i, pte[i].eid);
-        }
-    }
-
     while ((pte++)->eid != eid)
         ;
-
     return --pte;
 }
 
@@ -1246,11 +1241,14 @@ void NSInit(ns_struct *nss, uint32_t lid) {
     nss->cur_pgid = 0;
     nss->level_update_pending = 1;
 
+    // custom ns pointer containers
+    init_global_containers(0x200);
+
     nsd_filename = NSGetFilename(0, lid);
     strcpy(filename, nsd_filename);
 
     nsd *nsd = ReadNsd64(filename);
-    DebugLogNsd(nsd);
+    // DebugLogNsd(nsd);
 
     nss->nsd = nsd;
     nss->ldat_eid = &nsd->ldat_eid;
@@ -1267,19 +1265,7 @@ void NSInit(ns_struct *nss, uint32_t lid) {
 
     nss->page_table = nsd->page_table;
 
-    // TODO: ldat doesn't seem to be after page table...
     nss->ldat = (nsd_ldat *)&nsd->page_table[nsd->page_table_size];
-
-    // print first 32 bytes of ldat for debugging
-    printf("First 32 bytes of ldat:\n");
-    for (i = 0; i < 32; i++) {
-        printf("%02X ", ((uint8_t *)nss->ldat)[i]);
-        if (i % 16 == 15) {
-            printf("\n");
-        }
-    }
-
-    printf("offset of ldat: %u\n", nsd->page_table_size * sizeof(nsd_pte));
 
     nsd_pte **buckets;
     uint32_t *offsets;
@@ -1314,25 +1300,6 @@ void NSInit(ns_struct *nss, uint32_t lid) {
     physical_page_count = page_count;
     pagemem = (page *)NSFileReadFrom(filename, nsd->pages_offset * SECTOR_SIZE, &pagemem_size);
 
-    // Debug first page
-    printf("\nFirst page debug:\n");
-    printf("Page memory at: %p\n", (void *)pagemem);
-    printf("Page magic: 0x%x\n", pagemem[0].magic);
-    printf("Page type: %d\n", pagemem[0].type);
-    printf("Page entry count: %d\n", pagemem[0].entry_count);
-
-    // Debug first entry in first page
-    entry *first_entry = GetPageEntry(&pagemem[0], 0);
-    printf("\nFirst entry debug:\n");
-    printf("Entry at: %p\n", (void *)first_entry);
-    printf("Entry magic: 0x%x\n", first_entry->magic);
-    printf("Entry type: %d\n", first_entry->type);
-    printf("Entry item count: %d\n", first_entry->item_count);
-    printf("First few item offsets:\n");
-    for (int i = 0; i < min(5, first_entry->item_count); i++) {
-        printf("  offset[%d]: 0x%x\n", i, first_entry->item_offsets[i]);
-    }
-
     pagemem = (page *)realloc(pagemem, physical_page_count * PAGE_SIZE);
     nss->physical_page_count = physical_page_count;
     /* init physical page structs */
@@ -1354,8 +1321,6 @@ void NSInit(ns_struct *nss, uint32_t lid) {
     for (i = 0; i < page_count; i++) {
         nss->page_map[i] = &nss->physical_pages[i];
     }
-
-    printf("Inited and Allocated %d pages\n", physical_page_count);
 
     NSInitTexturePages(nss, lid);
     NSInitAudioPages(nss, lid);

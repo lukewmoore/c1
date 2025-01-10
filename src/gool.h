@@ -135,12 +135,12 @@
 #define ISHANDLE(obj) (HANDLE(obj).type == 2)
 
 #define GoolObjectGetChildren(obj) \
-    (ISHANDLE(obj) ? HANDLE(obj).children : OBJECT(obj)->process.links[3])
-#define GoolObjectSetChildren(obj, c)      \
-    if (ISHANDLE(obj)) {                   \
-        HANDLE(obj).children = c;          \
-    } else {                               \
-        OBJECT(obj)->process.links[3] = c; \
+    (ISHANDLE(obj) ? get_gool_object(HANDLE(obj).children_handle) : get_gool_object(OBJECT(obj)->process.links_handle[3]))
+#define GoolObjectSetChildren(obj, c)                                \
+    if (ISHANDLE(obj)) {                                             \
+        HANDLE(obj).children_handle = store_gool_object(c);          \
+    } else {                                                         \
+        OBJECT(obj)->process.links_handle[3] = store_gool_object(c); \
     }
 
 #define GoolCalcBound(b, t, o)      \
@@ -156,20 +156,30 @@
 /* object structure definitions */
 typedef struct
 {
-    struct _gool_object *self;
-    struct _gool_object *parent;
-    struct _gool_object *sibling;
-    struct _gool_object *children;
-    struct _gool_object *creator;
-    struct _gool_object *player;
-    struct _gool_object *collider;
-    struct _gool_object *interrupter;
+    // struct gool_object *self;
+    // struct gool_object *parent;
+    // struct gool_object *sibling;
+    // struct gool_object *children;
+    // struct gool_object *creator;
+    // struct gool_object *player;
+    // struct gool_object *collider;
+    // struct gool_object *interrupter;
+    ptr_handle_t self_handle;        // gool_object * 0x0
+    ptr_handle_t parent_handle;      // gool_object * 0x4
+    ptr_handle_t sibling_handle;     // gool_object * 0x8
+    ptr_handle_t children_handle;    // gool_object * 0xC
+    ptr_handle_t creator_handle;     // gool_object * 0x10
+    ptr_handle_t player_handle;      // gool_object * 0x14
+    ptr_handle_t collider_handle;    // gool_object * 0x18
+    ptr_handle_t interrupter_handle; // gool_object * 0x1C
 } gool_links;
 
 typedef struct
 {
-    struct _gool_object *prev;
-    struct _gool_object *next;
+    // struct gool_object *prev;
+    // struct gool_object *next;
+    ptr_handle_t prev_handle; // gool_object * 0x0
+    ptr_handle_t next_handle; // gool_object * 0x4
 } gool_link;
 
 typedef struct
@@ -201,41 +211,62 @@ typedef struct
     };
 } gool_vectors;
 
-typedef struct
+// Memory alignment attribute for 32-bit alignment
+#if defined(__GNUC__)
+#define ALIGNED __attribute__((aligned(4)))
+#elif defined(_MSC_VER)
+#define ALIGNED __declspec(align(4))
+#else
+#define ALIGNED
+#endif
+
+ALIGNED typedef struct
 {
-    union {
-        struct _gool_object *links[8];
-    };
+    // union {
+    // gool_links gool_links;
+    // struct _gool_object *links[8];
+    ptr_handle_t links_handle[8]; // gool_object *
+    // }; // 0x0
     union {
         gool_vectors vectors;
         vec vectors_v[6];
         ang vectors_a[6];
-    };
-    uint32_t status_a;
-    uint32_t status_b;
-    uint32_t status_c;
-    uint32_t subtype;
-    uint32_t pid_flags;
-    uint32_t *sp;
-    uint32_t *pc;
-    uint32_t *fp;
-    uint32_t *tp;
-    uint32_t *ep;
-    uint32_t *once_p;
+    }; // 0x20
+    uint32_t status_a;  // 0x68
+    uint32_t status_b;  // 0x6C
+    uint32_t status_c;  // 0x70
+    uint32_t subtype;   // 0x74
+    uint32_t pid_flags; // 0x78
+    // uint32_t *sp;
+    // uint32_t *pc;
+    // uint32_t *fp;
+    // uint32_t *tp;
+    // uint32_t *ep;
+    // uint32_t *once_p;
+    ptr_handle_t sp_handle;     // uint32_t * 0x7C
+    ptr_handle_t pc_handle;     // uint32_t * 0x80
+    ptr_handle_t fp_handle;     // uint32_t * 0x84
+    ptr_handle_t tp_handle;     // uint32_t * 0x88
+    ptr_handle_t ep_handle;     // uint32_t * 0x8C
+    ptr_handle_t once_p_handle; // uint32_t * 0x90
     union {
         uint32_t misc_flag;
-        struct _gool_object *misc_child;
+        // struct _gool_object *misc_child;
+        ptr_handle_t misc_child_handle;
         uint32_t misc_node;
-        entry *misc_entry;
+        // entry *misc_entry;
+        ptr_handle_t misc_entry_handle;
         uint32_t misc_memcard;
-    };
+    }; // 0x94
     uint32_t ack;
     uint32_t anim_stamp;
     uint32_t state_stamp;
     uint32_t anim_counter;
-    gool_anim *anim_seq;
+    // gool_anim *anim_seq;
+    ptr_handle_t anim_seq_handle; // gool_anim *
     uint32_t anim_frame;
-    zone_entity *entity;
+    // zone_entity *entity;
+    ptr_handle_t entity_handle; // zone_entity *
     int32_t path_progress;
     uint32_t path_length;
     uint32_t floor_y;
@@ -261,34 +292,37 @@ typedef struct
 {
     int type;
     union {
-        struct _gool_object *children;
+        // struct _gool_object *children;
+        ptr_handle_t children_handle;
         int subtype;
     };
 } gool_handle;
 
-typedef struct _gool_object {
-    gool_handle handle;
-    bound bound;
-    // TODO: use offsets instead of pointers for 64 bit compatibility
+ALIGNED typedef struct gool_object {
+    gool_handle handle; // 0x0
+    bound bound;        // 0x8
     // entry *global;
     // entry *external;
     // entry *zone;
-    int32_t global_offset;
-    int32_t external_offset;
-    int32_t zone_offset;
-    uint32_t state;
+    ptr_handle_t global_handle;   // entry * 0x20
+    ptr_handle_t external_handle; // entry * 0x24
+    ptr_handle_t zone_handle;     // entry * 0x28
+    uint32_t state;               // 0x2C
     union {
         gool_colors colors;
         uint16_t colors_i[24];
-    };
+    }; // 0x30
     union {
         gool_process process;
         uint32_t regs[0x1FC];
-    };
+    }; // 0x90
 } gool_object;
 
+// TODO: this is cast from gool code, unsure how the pointer works...
+//   keeping as a handle for now
 typedef union {
-    gool_object *obj;
+    // gool_object *obj;
+    ptr_handle_t obj_handle; // gool_object *
     uint32_t node;
     uint32_t value;
 } gool_objnode;
